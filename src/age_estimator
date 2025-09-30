@@ -1,0 +1,32 @@
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
+
+AGE_PROTO = 'deploy_age.prototxt'
+AGE_MODEL = 'age_net.caffemodel'
+AGE_LIST = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']
+
+class AgeEstimator(Node):
+    def __init__(self):
+        super().__init__('age_estimator')
+        self.subscription = self.create_subscription(Image, 'face_image', self.listener_callback, 10)
+        self.bridge = CvBridge()
+        self.age_net = cv2.dnn.readNetFromCaffe(AGE_PROTO, AGE_MODEL)
+
+    def listener_callback(self, msg):
+        face_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        blob = cv2.dnn.blobFromImage(face_img, 1.0, (227, 227), (78.4263377603, 87.7689143744, 114.895847746), swapRB=False)
+        self.age_net.setInput(blob)
+        age_preds = self.age_net.forward()
+        age = AGE_LIST[age_preds[0].argmax()]
+        self.get_logger().info(f'Estimated Age: {age}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = AgeEstimator()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
