@@ -11,7 +11,7 @@ class ImagePublisher(Node):
         self.publisher_ = self.create_publisher(Image, 'input_image', 10)
         self.bridge = CvBridge()
         # プロジェクトディレクトリ基準で画像パスを指定
-        self.image_path = os.path.join(os.path.dirname(__file__), '../data/pic/pic.jpg')
+        self.image_path = os.path.join(os.path.dirname(__file__), '../../pic/pic/sample.jpg')
 
         # 1秒ごとに画像をpublish
         self.timer = self.create_timer(1.0, self.timer_callback)
