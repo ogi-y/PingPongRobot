@@ -13,4 +13,11 @@ RUN apt-get update && apt-get install -y \
 # Pythonパッケージのインストール
 RUN pip3 install --no-cache-dir opencv-python pillow
 
+# ROS環境を自動的にセットアップ
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+
+# ワークスペース設定
 WORKDIR /root/workspace
+
+# シェル起動時のデフォルトコマンド
+CMD ["/bin/bash"]

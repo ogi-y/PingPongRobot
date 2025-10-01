@@ -3,34 +3,35 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
-import os
 
-class ImagePublisher(Node):
+class ImageViewer(Node):
     def __init__(self):
-        super().__init__('image_publisher')
-        self.publisher_ = self.create_publisher(Image, 'input_image', 10)
+        super().__init__('image_viewer')
+        self.subscription = self.create_subscription(
+            Image,
+            '/image_raw',  # 購読するトピック名
+            self.image_callback,
+            10)
         self.bridge = CvBridge()
-        # プロジェクトディレクトリ基準で画像パスを指定
-        self.image_path = os.path.join(os.path.dirname(__file__), '../../pic/pic/sample.jpg')
 
-        # 1秒ごとに画像をpublish
-        self.timer = self.create_timer(1.0, self.timer_callback)
-
-    def timer_callback(self):
-        cv_image = cv2.imread(self.image_path)
-        if cv_image is None:
-            self.get_logger().error(f'画像が見つかりません: {self.image_path}')
-            return
-        msg = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
-        self.publisher_.publish(msg)
-        self.get_logger().info('画像をpublishしました')
+    def image_callback(self, msg):
+        # ROS画像メッセージ→OpenCV画像へ変換
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # 画像表示
+        cv2.imshow('Received Image', cv_image)
+        cv2.waitKey(1)  # ウィンドウを更新
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ImagePublisher()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    node = ImageViewer()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()

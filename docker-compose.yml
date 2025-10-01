@@ -1,6 +1,6 @@
 services:
   ros2dev:
-    image: ros:humble
+    build: .
     container_name: ros2_dev
     environment:
       #- DISPLAY=${DISPLAY} # Linuxの場合
@@ -10,5 +10,4 @@ services:
       - .:/root/workspace              # ホストのワークスペースをマウント
     tty: true
     stdin_open: true
-    build: .
     command: /bin/bash
