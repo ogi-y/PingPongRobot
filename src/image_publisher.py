@@ -13,8 +13,8 @@ class ImagePublisher(Node):
         self.bridge = CvBridge()
         
         # ROSパラメータの宣言と取得
-        self.declare_parameter('target_width', 640)
-        self.declare_parameter('target_height', 480)
+        self.declare_parameter('target_width', 1280)
+        self.declare_parameter('target_height', 720)
         self.declare_parameter('resize_enabled', True)
         
         self.target_width = self.get_parameter('target_width').get_parameter_value().integer_value
