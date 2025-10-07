@@ -1,2 +1,7 @@
 .venv/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.gif
 *.mp4
