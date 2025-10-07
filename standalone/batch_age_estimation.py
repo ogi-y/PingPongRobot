@@ -9,7 +9,7 @@ OUTPUT_FOLDER = "./standalone/pic/output"  # 出力フォルダのパス
 SUPPORTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
 
 # 推定したい属性
-actions = ['age', 'gender', 'emotion']
+actions = ['age']
 
 def process_image(image_path, output_path):
     """
