@@ -3,8 +3,8 @@ import numpy as np
 from pathlib import Path
 
 # 設定
-VIDEO_PATH = "./standalone/video/Movie_001.mp4"  # 動画ファイルのパス（Noneでカメラ使用）
-OUTPUT_PATH = "./standalone/video/output.mp4"  # 出力動画のパス（Noneで保存しない）
+VIDEO_PATH = "./standalone/video/ping.mp4"  # 動画ファイルのパス（Noneでカメラ使用）
+OUTPUT_PATH = "./standalone/video/pong.mp4"  # 出力動画のパス（Noneで保存しない）
 BALL_COLOR = "both"  # "white", "orange", "both"
 
 # ボール検出パラメータ
@@ -563,6 +563,11 @@ class BallTracker:
         return frame
 
 
+
+# リサイズ後の幅と高さ（例: 640x360）
+RESIZE_WIDTH = 640
+RESIZE_HEIGHT = 360
+
 def process_video(video_path=None, output_path=None, color_mode="both"):
     """
     動画を処理してボールをトラッキング
@@ -585,10 +590,14 @@ def process_video(video_path=None, output_path=None, color_mode="both"):
         return
     
     # 動画情報を取得
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    orig_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # リサイズ後のサイズ
+    width = RESIZE_WIDTH
+    height = RESIZE_HEIGHT
     
     # ロボットのY位置を計算
     if ROBOT_Y_POSITION <= 1.0:
@@ -596,7 +605,7 @@ def process_video(video_path=None, output_path=None, color_mode="both"):
     else:
         robot_y = int(ROBOT_Y_POSITION)
     
-    print(f"Video info: {width}x{height}, {fps} FPS, {total_frames} frames")
+    print(f"Video info: {orig_width}x{orig_height} (resize to {width}x{height}), {fps} FPS, {total_frames} frames")
     print(f"Robot Y position: {robot_y}px ({(robot_y/height)*100:.1f}% from top)")
     
     # ビデオライターを初期化
@@ -619,7 +628,7 @@ def process_video(video_path=None, output_path=None, color_mode="both"):
     print("Press 'q' to quit, 'p' to pause")
     
     paused = False
-    
+    frame = None
     while True:
         if not paused:
             ret, frame = cap.read()
@@ -627,6 +636,9 @@ def process_video(video_path=None, output_path=None, color_mode="both"):
             if not ret:
                 print("\nEnd of video or error reading frame")
                 break
+            
+            # フレームをリサイズ
+            frame = cv2.resize(frame, (width, height))
             
             frame_count += 1
             
@@ -657,16 +669,19 @@ def process_video(video_path=None, output_path=None, color_mode="both"):
                 progress = (frame_count / total_frames) * 100 if total_frames > 0 else 0
                 print(f"Progress: {frame_count}/{total_frames} ({progress:.1f}%) - Detected: {len(balls)} balls")
         else:
-            result_frame = frame.copy()
-            cv2.putText(
-                result_frame,
-                "PAUSED - Press 'p' to resume",
-                (width // 2 - 150, height // 2),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 0, 255),
-                2
-            )
+            if frame is not None:
+                result_frame = frame.copy()
+                cv2.putText(
+                    result_frame,
+                    "PAUSED - Press 'p' to resume",
+                    (width // 2 - 150, height // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 0, 255),
+                    2
+                )
+            else:
+                continue
         
         # 結果を表示
         cv2.imshow('Ball Tracking', result_frame)
