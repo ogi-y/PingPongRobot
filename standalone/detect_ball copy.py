@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import sys
+import time
 
 # ===== 設定 =====
 mode = "video"  # "video", "camera"
@@ -146,6 +147,8 @@ def find_best_ball(contours, prediction=None):
 # ===== メインループ =====
 frame_count = 0
 print("Processing... Press 'q' to quit")
+prev_time = time.time()
+fps = 0
 
 while True:
     ret, frame = cap.read()
@@ -242,6 +245,8 @@ while True:
     
     cv2.putText(frame, f"Candidates: {len(contours)}", (10, 90),
                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(frame, f"FPS: {fps:.1f}", (10, resize_height - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     
     # 保存と表示
     out.write(frame)
@@ -258,3 +263,6 @@ out.release()
 cv2.destroyAllWindows()
 print(f"Output saved to: {output_path}")
 print(f"Total frames processed: {frame_count}")
+
+total_time = time.time() - prev_time
+print(f"Average FPS: {frame_count / total_time:.2f}")
