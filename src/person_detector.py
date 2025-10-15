@@ -5,7 +5,7 @@ from geometry_msgs.msg import Point
 from std_msgs.msg import Header
 from cv_bridge import CvBridge
 import cv2
-from ultralytics import YOLO
+# from ultralytics import YOLO
 import numpy as np
 
 # カスタムメッセージタイプを定義

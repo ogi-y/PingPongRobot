@@ -11,10 +11,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Pythonパッケージのインストール
-RUN pip3 install --no-cache-dir opencv-python pillow
-RUN pip install ultralytics
-RUN pip install tf-keras
-RUN pip install deepface
+RUN pip3 install --no-cache-dir opencv-python pillow tf-keras deepface
+# RUN pip install ultralytics
 
 # ROS環境を自動的にセットアップ
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
