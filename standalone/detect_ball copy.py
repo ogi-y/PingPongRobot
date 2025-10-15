@@ -5,8 +5,7 @@ import sys
 # ===== 設定 =====
 mode = "video"  # "video", "camera"
 ball_color = "white"  # "white", "orange", "both"
-resize_width = 640
-resize_height = 480
+resize_ratio = 0.2  # リサイズ比率
 video_path = "standalone/video/ping.mp4"
 output_path = "standalone/video/output_detected.mp4"
 
@@ -15,7 +14,7 @@ min_radius = 5
 max_radius = 50
 min_area = 50
 max_area = 3000
-circularity_threshold = 0.6  # 円形度（0-1、1が完全な円）
+circularity_threshold = 0.8  # 円形度（0-1、1が完全な円）
 jitter_threshold = 100  # 急激な移動を除外（ピクセル）
 lost_frame_threshold = 15  # この回数まで予測で追跡継続
 
@@ -32,6 +31,10 @@ if not cap.isOpened():
 # FPS取得と出力設定
 fps = cap.get(cv2.CAP_PROP_FPS) if mode == "video" else 30.0
 print(f"FPS: {fps}")
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+resize_width = int(width * resize_ratio)
+resize_height = int(height * resize_ratio)
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter(output_path, fourcc, fps, (resize_width, resize_height))
