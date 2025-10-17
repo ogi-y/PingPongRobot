@@ -7,3 +7,5 @@
 1. docker compose down
 2. docker compose up --build
 3. docker exec -it ros2_dev bash
+
+DeepLearning系のパッケージを毎回インストールする手間を考えるとDockerをつかうよりubuntuにros2を入れてしまうほうが楽では？
