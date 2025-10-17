@@ -37,7 +37,8 @@ height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 resize_width = int(width * resize_ratio)
 resize_height = int(height * resize_ratio)
 
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+# fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+fourcc = cv2.VideoWriter_fourcc(*'avc1')
 out = cv2.VideoWriter(output_path, fourcc, fps, (resize_width, resize_height))
 
 # 色範囲の設定
