@@ -1,5 +1,3 @@
-#!/home/ogi/PingPongRobot/.venv/bin/python
-
 from setuptools import find_packages, setup
 
 package_name = 'face_age_estimation'
