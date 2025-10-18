@@ -9,3 +9,4 @@ venv_ubuntu/
 build/
 install/
 log/
+venv/
