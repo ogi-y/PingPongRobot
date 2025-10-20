@@ -1,11 +1,11 @@
 from setuptools import find_packages, setup
 
-package_name = 'face_age_estimation'
+package_name = 'pingpong'
 
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name],
+    packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -23,8 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'image_publisher = face_age_estimation.image_publisher:main',
-            'age_estimation = face_age_estimation.age_estimation:main'
+            'image_publisher = pingpong.image_publisher:main',
+            'age_estimation = pingpong.age_estimation:main'
         ],
     },
 )
