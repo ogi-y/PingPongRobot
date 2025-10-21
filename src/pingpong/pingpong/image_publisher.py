@@ -13,7 +13,7 @@ class ImagePublisher(Node):
         self.pub = self.create_publisher(Image, '/camera/image_raw', 10)
         self.bridge = CvBridge()
 
-        # ここにテスト画像フォルダを指定（相対パス可）
+        # 画像フォルダを指定
         data_dir = Path.home() / 'PingPongRobot' / 'data' / 'images'
         self.image_files = sorted(data_dir.glob('*.*'))
 
@@ -23,7 +23,7 @@ class ImagePublisher(Node):
             self.get_logger().info(f'Found {len(self.image_files)} images in {data_dir}')
 
         self.idx = 0
-        # 1.0 => 毎秒1枚。変更したければ秒数を小さくする。
+        # 投稿頻度の設定
         self.timer = self.create_timer(1.0, self.timer_callback)
 
     def timer_callback(self):
@@ -37,7 +37,6 @@ class ImagePublisher(Node):
             return
 
         msg = self.bridge.cv2_to_imgmsg(img, encoding='bgr8')
-        # header.stamp は自動では入らないので必要なら入れる（ここは省略）
         self.pub.publish(msg)
         self.get_logger().info(f'Published {os.path.basename(img_path)}')
         self.idx = (self.idx + 1) % len(self.image_files)
