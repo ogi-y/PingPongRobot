@@ -31,6 +31,7 @@ class ImagePublisher(Node):
             return
         img_path = self.image_files[self.idx]
         img = cv2.imread(str(img_path))
+        img = cv2.resize(img, (640, 480))
         if img is None:
             self.get_logger().warn(f'Failed to read image: {img_path}')
             self.idx = (self.idx + 1) % len(self.image_files)
