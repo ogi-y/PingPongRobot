@@ -12,9 +12,10 @@ setup(
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools',
-                      'mediapipe',
                       'opencv-python',
-                      'numpy'],
+                      'deepface',
+                      'numpy<2'
+                      ],
     zip_safe=True,
     maintainer='ogi',
     maintainer_email='ioshelg@gmail.com',
