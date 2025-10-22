@@ -24,7 +24,7 @@ ros2 run pingpong age_estimation
 
 ## ノード構成
 - **image_publisher**  
-  /data/images内のファイルを `/camera/image_raw` トピックに定期送信します。  
+  /data/images内の画像を `/camera/image_raw` トピックに定期送信します。  
   実装: [`pingpong.image_publisher`](src/pingpong/pingpong/image_publisher.py)
 
 - **age_estimation**  
@@ -44,4 +44,5 @@ ros2 run pingpong age_estimation
 卓球ロボ用コード  
 ros2のパッケージとして動作します  
 説明はdocs内にあります  
+
 
