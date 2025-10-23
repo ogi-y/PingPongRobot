@@ -10,3 +10,4 @@ build/
 install/
 log/
 venv/
+.github/
