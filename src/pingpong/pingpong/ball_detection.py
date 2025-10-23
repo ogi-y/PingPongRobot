@@ -4,7 +4,6 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 import cv2
-from deepface import DeepFace
 
 class ImageSizePublisher(Node):
     def __init__(self):
