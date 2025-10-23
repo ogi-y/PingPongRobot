@@ -17,9 +17,9 @@ class ImageSizePublisher(Node):
         return (pos2d, radius)  # 検出した座標を返す
     
     def estimate_ball_position(self, ball_2d_pos, ball_radius):
-        # ここに着弾地点予測処理を書く
-        return (pred_x, pred_y, pred_z)  # 予測した着弾地点を返す
-    
+        # ここに3D位置推定処理を書く
+        return (pred_x, pred_y, pred_z)  # 予測した3D位置を返す
+
     def predict_ball_trajectory(self, ball_2d_pos, ball_radius):
         # ここに軌道予測処理を書く
         return prediction  # 予測位置を返す
