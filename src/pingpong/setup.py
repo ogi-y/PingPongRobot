@@ -14,7 +14,8 @@ setup(
     install_requires=['setuptools',
                       'opencv-python',
                       'deepface',
-                      'numpy<2'
+                      'numpy<2',
+                      'ultralytics',
                       ],
     zip_safe=True,
     maintainer='ogi',
