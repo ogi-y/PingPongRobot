@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import cv2
 
 cap = cv2.VideoCapture(0)
-model = YOLO('yolov8n.pt')
+model = YOLO('yolov8n-pose.pt')
 
 while True:
     ret, frame = cap.read()
@@ -10,12 +10,9 @@ while True:
         break
 
     results = model(frame)
-    for box in results[0].boxes:
-        if int(box.cls[0]) == 0:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    annotated = results[0].plot()
 
-    cv2.imshow('YOLO Detected', frame)
+    cv2.imshow('YOLO Detected', annotated)
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
