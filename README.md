@@ -10,6 +10,7 @@
 - cv_bridge
 - deepface
 - tensorflow
+- mediapipe
 
 ## HowToUse
 ```(bash)
@@ -20,6 +21,7 @@ source install/setup.bash
 # ノード実行
 ros2 run pingpong image_publisher
 ros2 run pingpong age_estimation
+ros2 run pingpong skeleton_recognition
 ```
 
 ## ノード構成
@@ -35,6 +37,11 @@ ros2 run pingpong age_estimation
 - **sample_image_subscriber**  
   画像サイズを受信・表示します。  
   実装: [`pingpong.sample_image_subscriber`](src/pingpong/pingpong/sample_image_subscriber.py)
+
+- **skeleton_recognition**  
+  画像から人物の骨格（姿勢）を認識し、`skeleton` トピックに結果を送信します。  
+  MediaPipe Poseを使用して33個の身体ランドマークを検出します。  
+  実装: [`pingpong.skeleton_recognition`](src/pingpong/pingpong/skeleton_recognition.py)
 
 ## 動作確認済み環境
 - OS: Windows 11（WSL2: Ubuntu 24.04.1 LTS）

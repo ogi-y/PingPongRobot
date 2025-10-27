@@ -19,6 +19,7 @@
   <exec_depend>opencv-python</exec_depend>
   <exec_depend>deepface</exec_depend>
   <exec_depend>numpy</exec_depend> <!-- numpyは2未満が必要 -->
+  <exec_depend>mediapipe</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

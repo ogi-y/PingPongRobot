@@ -16,6 +16,7 @@ setup(
                       'deepface',
                       'numpy<2',
                       'ultralytics',
+                      'mediapipe',
                       ],
     zip_safe=True,
     maintainer='ogi',
@@ -28,6 +29,7 @@ setup(
             'image_publisher = pingpong.image_publisher:main',
             'age_estimation = pingpong.age_estimation:main',
             'sample_image_subscriber = pingpong.sample_image_subscriber:main',
+            'skeleton_recognition = pingpong.skeleton_recognition:main',
         ],
     },
 )
