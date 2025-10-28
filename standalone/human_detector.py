@@ -3,6 +3,7 @@ import cv2
 
 cap = cv2.VideoCapture(0)
 model = YOLO('yolov8n-pose.pt')
+# model = YOLO('yolov8n.pt')
 
 while True:
     ret, frame = cap.read()
