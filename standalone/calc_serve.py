@@ -24,12 +24,11 @@ def cal_serve_cource(level, oppo_pos, court_size=(2.74, 1.525), net_height=0.15)
 table_length = 2.74
 table_width = 1.525
 fig, ax = plt.subplots(figsize=(8, 5))
-plt.subplots_adjust(bottom=0.5)
+plt.subplots_adjust(bottom=0.4)
 
-# ロボ
 robo_pos = (0, table_width / 2)
-# 相手
 oppo_pos = (table_length + 0.5, table_width / 2)
+level = 1
 
 # 卓球台の枠
 rect = plt.Rectangle((0, 0), table_length, table_width, linewidth=2, edgecolor='blue', facecolor='lightblue')
@@ -73,6 +72,7 @@ ax_oppo_x = plt.axes([0.25, 0.05, 0.65, 0.03], facecolor=axcolor)
 ax_oppo_y = plt.axes([0.25, 0.0, 0.65, 0.03], facecolor=axcolor)
 slider_oppo_x = Slider(ax_oppo_x, 'Opponent X', table_length, table_length + 1.0, valinit=oppo_pos[0])
 slider_oppo_y = Slider(ax_oppo_y, 'Opponent Y', 0, table_width, valinit=oppo_pos[1])
+slider_level = Slider(plt.axes([0.25, 0.2, 0.65, 0.03], facecolor=axcolor), 'Level', 0, 3, valinit=level, valstep=1)
 
 ax_fire = plt.axes([0.8, 0.35, 0.1, 0.04])
 btn_fire = Button(ax_fire, 'Fire!', color=axcolor, hovercolor='0.975')
@@ -86,7 +86,7 @@ def fire(event):
     robo_x = slider_robo_x.val
     robo_y = slider_robo_y.val
     oppo_pos = (slider_oppo_x.val, slider_oppo_y.val)
-    target_x, target_y = cal_serve_cource(level=1, oppo_pos=oppo_pos)
+    target_x, target_y = cal_serve_cource(level=slider_level.val, oppo_pos=oppo_pos)
     ext_x = target_x + (target_x - robo_x) * 0.5
     ext_y = target_y + (target_y - robo_y) * 0.5
     serve_line.set_data([robo_x, ext_x], [robo_y, ext_y])
