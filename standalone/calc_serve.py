@@ -2,17 +2,22 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button
 import numpy as np
 
-def cal_serve_cource(level, oppo_pos, court_size=(2.74, 1.525)):
+def cal_serve_cource(level, oppo_pos, court_size=(2.74, 1.525), net_height=0.15):
     """サーブの目標位置を計算（簡易版）"""
     table_length, table_width = court_size
     # レベルに応じたターゲットゾーンの範囲
-    offset_map = {1: 0.3, 2: 0.2, 3: 0.15, 4: 0.1, 5: 0.08}
-    offset = offset_map.get(level, 0.15)
+    params = {
+        0: {"avoid": 0.0, "spin": 0.1, "speed": 0.2, "random": 0.1},  # easy
+        1: {"avoid": 0.2, "spin": 0.2, "speed": 0.3, "random": 0.3},  # medium
+        2: {"avoid": 0.5, "spin": 0.3, "speed": 0.4, "random": 0.5}, # hard
+        3: {"avoid": 0.8, "spin": 0.4, "speed": 0.5, "random": 0.7},  # impossible
+        "Rebellion": {"avoid": 0.0, "spin": "top_only", "speed": "max", "random": 0.0}  # Rebellion
+    }
     
+    p = params.get(level, params[1])
     # 相手の位置に基づいてターゲット位置を決定
-    target_x = table_length - offset
-    target_y = np.clip(oppo_pos[1] + np.random.uniform(-offset, offset), offset, table_width - offset)
-    
+    target_x = np.clip(oppo_pos[0] - np.random.uniform(p["avoid"], p["avoid"] + 0.5), table_length/2, table_length - 0.1)
+    target_y = np.clip(oppo_pos[1] + np.random.uniform(-p["random"], p["random"]), 0, table_width)
     return target_x, target_y
 
 # 卓球台のサイズ（単位: m）
