@@ -19,7 +19,7 @@ def cal_serve_cource(level, oppo_pos, court_size=(2.74, 1.525)):
 table_length = 2.74
 table_width = 1.525
 fig, ax = plt.subplots(figsize=(8, 5))
-plt.subplots_adjust(bottom=0.3)
+plt.subplots_adjust(bottom=0.5)
 
 # ロボ
 robo_pos = (0, table_width / 2)
@@ -64,18 +64,23 @@ ax_robo_x = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor=axcolor)
 ax_robo_y = plt.axes([0.25, 0.15, 0.65, 0.03], facecolor=axcolor)
 slider_robo_x = Slider(ax_robo_x, 'Robot X', 0, table_length, valinit=robo_pos[0])
 slider_robo_y = Slider(ax_robo_y, 'Robot Y', 0, table_width, valinit=robo_pos[1])
+ax_oppo_x = plt.axes([0.25, 0.05, 0.65, 0.03], facecolor=axcolor)
+ax_oppo_y = plt.axes([0.25, 0.0, 0.65, 0.03], facecolor=axcolor)
+slider_oppo_x = Slider(ax_oppo_x, 'Opponent X', table_length, table_length + 1.0, valinit=oppo_pos[0])
+slider_oppo_y = Slider(ax_oppo_y, 'Opponent Y', 0, table_width, valinit=oppo_pos[1])
 
-ax_fire = plt.axes([0.8, 0.025, 0.1, 0.04])
+ax_fire = plt.axes([0.8, 0.35, 0.1, 0.04])
 btn_fire = Button(ax_fire, 'Fire!', color=axcolor, hovercolor='0.975')
 
 def update(val):
     robo_plot.set_data([slider_robo_x.val], [slider_robo_y.val])
-    oppo_plot.set_data([oppo_pos[0]], [oppo_pos[1]])
+    oppo_plot.set_data([slider_oppo_x.val], [slider_oppo_y.val])
     fig.canvas.draw_idle()
 
 def fire(event):
     robo_x = slider_robo_x.val
     robo_y = slider_robo_y.val
+    oppo_pos = (slider_oppo_x.val, slider_oppo_y.val)
     target_x, target_y = cal_serve_cource(level=1, oppo_pos=oppo_pos)
     ext_x = target_x + (target_x - robo_x) * 0.5
     ext_y = target_y + (target_y - robo_y) * 0.5
@@ -85,5 +90,7 @@ def fire(event):
 btn_fire.on_clicked(fire)
 slider_robo_x.on_changed(update)
 slider_robo_y.on_changed(update)
+slider_oppo_x.on_changed(update)
+slider_oppo_y.on_changed(update)
 
 plt.show()
