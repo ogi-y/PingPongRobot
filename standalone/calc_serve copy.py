@@ -50,18 +50,58 @@ def calc_impact_point(level, oppo_pos, court_size=(2.74, 1.525)):
 
     return target_x, target_y
 
-def calc_launch_params(level, court_size=(2.74, 1.525), net_height=0.1525):
-    params = {
-        0: {"power": 0.5, "spin": 0.1, "robo_pos": [1]},
-        1: {"power": 0.7, "spin": 0.2, "robo_pos": [0, 1, 2]},
-        2: {"power": 0.9, "spin": 0.3, "robo_pos": [0, 1, 2]},
-        3: {"power": 1.0, "spin": 0.4, "robo_pos": [0, 1, 2]},
+def calc_launch_params(robo_pos, target_pos, level, court_size=(2.74, 1.525), net_height=0.1525):
+    table_length, table_width = court_size
+    
+    level_params = {
+        0: {"power_scale": 0.5, "max_spin_rpm": 50},
+        1: {"power_scale": 0.7, "max_spin_rpm": 150},
+        2: {"power_scale": 0.9, "max_spin_rpm": 250},
+        3: {"power_scale": 1.0, "max_spin_rpm": 350},
     }
-    return pos, ang, power, spin
+    p = level_params.get(level, level_params[1])
+    
+    dx = target_pos[0] - robo_pos[0]
+    dy = target_pos[1] - robo_pos[1]
+    distance = np.sqrt(dx**2 + dy**2)
+    
+    net_y = table_length / 2
+    net_clearance = 0.05
+    
+    if robo_pos[1] < net_y < target_pos[1]:
+        dist_to_net = net_y - robo_pos[1]
+        min_angle = np.arctan((net_height + net_clearance) / dist_to_net)
+    else:
+        min_angle = np.radians(5)
+    
+    launch_angle = min_angle + np.radians(3 + level * 2)
+    launch_angle = np.clip(launch_angle, np.radians(5), np.radians(30))
+    
+    g = 9.81
+    v0_base = np.sqrt(g * distance / np.sin(2 * launch_angle))
+    v0 = v0_base * p["power_scale"]
+    
+    azimuth = np.arctan2(dy, dx)
+    
+    spin_rpm = p["max_spin_rpm"]
+    
+    return v0, launch_angle, azimuth, spin_rpm
 
-def calc_motor_params(launch_params):
-    pass
-    #return pos, roll, pitch, yaw, shoot_l, shoot_r
+def calc_motor_params(launch_params, wheel_radius=0.02, wheel_separation=0.05):
+    v0, launch_angle, azimuth, spin_rpm = launch_params
+    
+    pitch = launch_angle
+    yaw = azimuth
+    roll = 0.0
+    
+    base_rpm = (v0 / (2 * np.pi * wheel_radius)) * 60
+    
+    spin_diff = spin_rpm * 0.3
+    
+    shoot_left = base_rpm + spin_diff
+    shoot_right = base_rpm - spin_diff
+    
+    return roll, pitch, yaw, shoot_left, shoot_right
 
 table_length = 2.74
 table_width = 1.525
@@ -74,7 +114,7 @@ def setup_court(ax):
     rect = plt.Rectangle((-table_width / 2, 0), table_width, table_length, linewidth=2, edgecolor='blue', facecolor='lightblue')
     ax.add_patch(rect)
     ax.plot([-table_width / 2, table_width / 2], [table_length / 2, table_length / 2], color='white', linewidth=2)
-    ax.plot([-table_width / 2, table_width / 2], [table_length / 2, table_length / 2], color='black', linestyle='--', linewidth=2)
+    ax.plot([-table_width / 2, table_width / 2], [table_length / 2, table_length / 2], color='black', linestyle='--', linewidth=1)
     
     for side in [0, table_length / 2]:
         for i in range(1, 3):
@@ -93,7 +133,7 @@ def setup_court(ax):
 setup_court(ax1)
 ax1.set_title('Single Shot')
 setup_court(ax2)
-ax2.set_title('Heatmap (100 shots)')
+ax2.set_title('Heatmap (1000 shots)')
 
 robo_pos = (0, 0)
 oppo_pos = (0, table_length + 0.5)
@@ -123,6 +163,9 @@ btn_fire = Button(ax_fire, 'Fire!', color=axcolor, hovercolor='0.975')
 ax_heatmap = plt.axes([0.70, 0.2, 0.15, 0.04])
 btn_heatmap = Button(ax_heatmap, 'Generate Heatmap', color=axcolor, hovercolor='0.975')
 
+param_text = ax1.text(2, 0.9, '', transform=ax1.transAxes, 
+                      verticalalignment='top', fontfamily='monospace', fontsize=8)
+
 def update(val):
     robo_plot1.set_data([slider_robo_x.val], [slider_robo_y.val])
     oppo_plot1.set_data([slider_oppo_x.val], [slider_oppo_y.val])
@@ -135,11 +178,33 @@ def fire(event):
     robo_y = slider_robo_y.val
     oppo_x = slider_oppo_x.val
     oppo_y = slider_oppo_y.val
-    target_x, target_y = calc_impact_point(level=slider_level.val, oppo_pos=(oppo_x, oppo_y), court_size=(table_length, table_width))
+    level = int(slider_level.val)
+    
+    target_x, target_y = calc_impact_point(level=level, oppo_pos=(oppo_x, oppo_y), 
+                                           court_size=(table_length, table_width))
+    
+    launch_params = calc_launch_params((robo_x, robo_y), (target_x, target_y), level,
+                                       court_size=(table_length, table_width))
+    
+    motor_params = calc_motor_params(launch_params)
+    
     ext_x = target_x + (target_x - robo_x) * 0.5
     ext_y = target_y + (target_y - robo_y) * 0.5
     serve_line.set_data([robo_x, ext_x], [robo_y, ext_y])
     target_plot.set_data([target_x], [target_y])
+    
+    v0, angle, azimuth, spin = launch_params
+    roll, pitch, yaw, shoot_l, shoot_r = motor_params
+    
+    info_text = f'Target: ({target_x:.3f}, {target_y:.3f})\n'
+    info_text += f'V0: {v0:.2f} m/s\n'
+    info_text += f'Angle: {np.degrees(angle):.1f}°\n'
+    info_text += f'Azimuth: {np.degrees(azimuth):.1f}°\n'
+    info_text += f'Spin: {spin:.0f} rpm\n'
+    info_text += f'Motor L: {shoot_l:.0f} rpm\n'
+    info_text += f'Motor R: {shoot_r:.0f} rpm'
+    param_text.set_text(info_text)
+    
     fig.canvas.draw_idle()
 
 def generate_heatmap(event):
@@ -147,12 +212,13 @@ def generate_heatmap(event):
     
     oppo_x = slider_oppo_x.val
     oppo_y = slider_oppo_y.val
-    level = slider_level.val
+    level = int(slider_level.val)
     
     targets_x = []
     targets_y = []
     for _ in range(1000):
-        tx, ty = calc_impact_point(level=level, oppo_pos=(oppo_x, oppo_y), court_size=(table_length, table_width))
+        tx, ty = calc_impact_point(level=level, oppo_pos=(oppo_x, oppo_y), 
+                                   court_size=(table_length, table_width))
         targets_x.append(tx)
         targets_y.append(ty)
     
