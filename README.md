@@ -2,7 +2,7 @@
 ![WIP](https://img.shields.io/badge/status-開発中-yellow)
 
 ## 概要
-- 年齢に応じて難易度が変わる卓球ロボ（予定）
+- 年齢に応じて難易度が変わる卓球サーブロボ（予定）
 
 ## 必要パッケージ
 - numpy (<2)
@@ -44,5 +44,6 @@ ros2 run pingpong age_estimation
 卓球ロボ用コード  
 ros2のパッケージとして動作します  
 説明はdocs内にあります  
+
 
 
