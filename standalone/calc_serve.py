@@ -12,48 +12,36 @@ def cal_serve_cource(level, oppo_pos, court_size=(2.74, 1.525)):
     }
     p = params.get(level, params[1])
 
-    # 相手コート（y: table_length/2 ～ table_length）を3x3に分割
     grid_y_start = table_length / 2
-    grid_y_size = table_length / 2 / 3  # 奥行き方向のマスサイズ
-    grid_x_size = table_width / 3        # 左右方向のマスサイズ
+    grid_y_size = table_length / 2 / 3
+    grid_x_size = table_width / 3
 
-    # 相手がどのマスにいるか判定
-    oppo_grid_y = int((oppo_pos[1] - grid_y_start) / grid_y_size)  # 奥行き: 0(手前), 1(中), 2(奥)
-    oppo_grid_x = int((oppo_pos[0] + table_width / 2) / grid_x_size)  # 左右: 0(左), 1(中), 2(右)
+    oppo_grid_y = int((oppo_pos[1] - grid_y_start) / grid_y_size)
+    oppo_grid_x = int((oppo_pos[0] + table_width / 2) / grid_x_size)
     oppo_grid_y = np.clip(oppo_grid_y, 0, 2)
     oppo_grid_x = np.clip(oppo_grid_x, 0, 2)
 
-    # === 左右方向（x軸）の選択 ===
     if np.random.rand() < p["avoid"]:
-        # 相手を避ける：相手がいないマスから選択
         candidates_x = [j for j in range(3) if j != oppo_grid_x]
         chosen_grid_x = np.random.choice(candidates_x)
     else:
-        # 相手を狙う：相手がいるマスを選択
         chosen_grid_x = oppo_grid_x
 
-    # === 奥行き方向（y軸）の選択 ===
     if np.random.rand() < p["avoid"]:
-        # 相手を避ける：相手がいない奥行きから選択
         candidates_y = [i for i in p["depth_range"] if i != oppo_grid_y]
         if len(candidates_y) > 0:
             chosen_grid_y = np.random.choice(candidates_y)
         else:
-            # depth_rangeに相手以外の選択肢がない場合は相手の位置を選ぶ
             chosen_grid_y = oppo_grid_y
     else:
-        # 相手を狙う：相手がいる奥行きを選択（depth_range内に限る）
         if oppo_grid_y in p["depth_range"]:
             chosen_grid_y = oppo_grid_y
         else:
-            # 相手の奥行きがdepth_rangeにない場合はランダム
             chosen_grid_y = np.random.choice(p["depth_range"])
 
-    # === 合体：選択されたマスの中心座標 ===
     center_x = -table_width / 2 + (chosen_grid_x + 0.5) * grid_x_size
     center_y = grid_y_start + (chosen_grid_y + 0.5) * grid_y_size
 
-    # randomパラメータに応じてランダムなずれを追加
     offset_x = np.random.uniform(-p["random"] * grid_x_size, p["random"] * grid_x_size)
     offset_y = np.random.uniform(-p["random"] * grid_y_size, p["random"] * grid_y_size)
 
@@ -67,7 +55,7 @@ table_width = 1.525
 fig, ax = plt.subplots(figsize=(8, 5))
 plt.subplots_adjust(bottom=0.35)
 
-# 卓球台枠（x: -width/2 ～ width/2, y: 0 ～ length）
+# 卓球台
 rect = plt.Rectangle((-table_width / 2, 0), table_width, table_length, linewidth=2, edgecolor='blue', facecolor='lightblue')
 ax.add_patch(rect)
 
@@ -75,7 +63,7 @@ ax.add_patch(rect)
 ax.plot([-table_width / 2, table_width / 2], [table_length / 2, table_length / 2], color='white', linewidth=2)
 ax.plot([-table_width / 2, table_width / 2], [table_length / 2, table_length / 2], color='black', linestyle='--', linewidth=2)
 
-# 9分割線
+# 分割線
 for side in [0, table_length / 2]:
     for i in range(1, 3):
         y = side + (table_length / 2) * i / 3
