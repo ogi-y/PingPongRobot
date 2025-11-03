@@ -1,150 +1,120 @@
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-
-angle = -30.0
-power = 0.7
-spin = 50.0
-spin_axis = (1.0, 0.0, 0.0)
-
-launch_height = 10
+import matplotlib.pyplot as plt
 
 g = 9.81
-m = 0.145
-rho = 1.225
-C_d = 0.47
-r = 0.0366
-A = np.pi * r**2
-dt = 0.001
 
-e_normal = 0.6
-e_tangential = 0.7
-friction_coef = 0.3
-
-v0 = power * 50
-
-angle_rad = np.radians(angle)
-vx = v0 * np.cos(angle_rad)
-vy = 0.0
-vz = v0 * np.sin(angle_rad)
-
-spin_axis_norm = np.array(spin_axis) / np.linalg.norm(spin_axis)
-omega = spin * np.array(spin_axis_norm)
-
-pos = np.array([0.0, 0.0, launch_height])
-vel = np.array([vx, vy, vz])
-
-trajectory = [pos.copy()]
-bounced = False
-bounce_positions = []
-
-max_iterations = 100000
-iteration = 0
-
-while iteration < max_iterations:
-    iteration += 1
-    v_mag = np.linalg.norm(vel)
+def simulate_ball(v0, angle_deg, h0=0, restitution=0.8, dt=0.001, t_max=10, target=None):
+    """
+    ボールの放物運動＋バウンドを計算して描画する関数
+    v0: 初速度[m/s]
+    angle_deg: 発射角度[度]
+    h0: 発射高さ[m]
+    restitution: 反発係数
+    target: (x, y) 形式で目標地点を指定（省略可）
+    """
+    angle = np.deg2rad(angle_deg)
+    vx = v0 * np.cos(angle)
+    vy = v0 * np.sin(angle)
     
-    if v_mag > 0:
-        drag = -0.5 * rho * C_d * A * v_mag * vel
+    x, y = [0], [h0]
+    px, py = 0, h0
+    t = 0
+    
+    while t < t_max:
+        t += dt
+        vy -= g * dt
+        new_x = px + vx * dt
+        new_y = py + vy * dt
         
-        S = 4.1e-4
-        v_cross_omega = np.cross(vel, omega)
-        magnus = rho * S * v_cross_omega
-        
-        acc = (drag + magnus) / m + np.array([0, 0, -g])
-    else:
-        acc = np.array([0, 0, -g])
-    
-    vel += acc * dt
-    pos += vel * dt
-    
-    if pos[2] < 0:
-        if not bounced:
-            pos[2] = 0
+        if new_y < 0:
+            t_collision = -py / vy
+            collision_x = px + vx * t_collision
             
-            v_normal = vel[2]
-            v_tangential = np.array([vel[0], vel[1], 0])
-            v_tangential_mag = np.linalg.norm(v_tangential)
+            x.append(collision_x)
+            y.append(0)
             
-            vel[2] = -v_normal * e_normal
+            remaining_t = dt - t_collision
+            vy = -vy * restitution
             
-            if v_tangential_mag > 0:
-                friction_impulse = min(friction_coef * abs(v_normal), v_tangential_mag * e_tangential)
-                vel[0] -= (vel[0] / v_tangential_mag) * friction_impulse
-                vel[1] -= (vel[1] / v_tangential_mag) * friction_impulse
-            
-            omega *= 0.8
-            
-            bounce_positions.append(pos.copy())
-            bounced = True
-        else:
-            break
-    
-    trajectory.append(pos.copy())
-    
-    if bounced and pos[2] < 0:
-        break
-    
-    if bounced and v_mag < 0.1:
-        break
-
-trajectory = np.array(trajectory)
-
-fig = plt.figure(figsize=(12, 8))
-ax = fig.add_subplot(111, projection='3d')
-
-if len(trajectory) > 0:
-    if len(bounce_positions) > 0:
-        bounce_idx = 0
-        for i in range(len(trajectory) - 1):
-            if np.allclose(trajectory[i], bounce_positions[0], atol=0.01):
-                bounce_idx = i
+            if abs(vy) < 0.5:
                 break
+            
+            px = collision_x
+            py = 0
+            vy -= g * remaining_t
+            new_x = px + vx * remaining_t
+            new_y = py + vy * remaining_t
         
-        ax.plot(trajectory[:bounce_idx+1, 0], trajectory[:bounce_idx+1, 1], 
-                trajectory[:bounce_idx+1, 2], 'b-', linewidth=2, label='Before Bounce')
-        ax.plot(trajectory[bounce_idx:, 0], trajectory[bounce_idx:, 1], 
-                trajectory[bounce_idx:, 2], 'r-', linewidth=2, label='After Bounce')
-    else:
-        ax.plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], 
-                'b-', linewidth=2, label='Trajectory')
+        x.append(new_x)
+        y.append(max(0, new_y))
+        px, py = new_x, new_y
+    
+    plt.figure(figsize=(10, 5))
+    plt.plot(x, y, label="Trajectory", color="blue", linewidth=2)
+    plt.xlabel("x [m]")
+    plt.ylabel("y [m]")
+    plt.grid(True, alpha=0.3)
+    plt.title(f"Ball Trajectory (v0={v0} m/s, angle={angle_deg}°)")
+    
+    plt.scatter(0, h0, color="red", marker="o", s=100, label="Launch Point", zorder=5)
+    plt.text(0, h0 + 1, "Launch", color="red", ha="center")
+    
+    if target is not None:
+        tx, ty = target
+        plt.scatter(tx, ty, color="green", marker="x", s=150, linewidths=3, label="Target Point", zorder=5)
+        plt.text(tx, ty + 1, f"Target ({tx:.1f}, {ty:.1f})", color="green", ha="center")
+    
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
-ax.scatter([0], [0], [launch_height], color='red', s=100, label='Start', marker='o')
 
-if len(bounce_positions) > 0:
-    for bp in bounce_positions:
-        ax.scatter([bp[0]], [bp[1]], [bp[2]], color='orange', s=150, 
-                   label='Bounce' if bp is bounce_positions[0] else '', marker='*')
+def calc_angle_for_target(v0, h0, target_x, target_y=0):
+    """
+    指定した速度で目標地点に到達するための発射角度を計算
+    放物線の式: y = x*tan(θ) - g*x²/(2*v0²*cos²(θ)) + h0
+    目標点で y = target_y となる θ を求める
+    """
+    dx = target_x
+    dy = target_y - h0
+    
+    v0_sq = v0 ** 2
+    g_dx_sq = g * dx ** 2
+    
+    a = g_dx_sq
+    b = -2 * v0_sq * dx
+    c = g_dx_sq + 2 * v0_sq * dy
+    
+    disc = b**2 - 4*a*c
+    
+    if disc < 0:
+        print("指定条件では到達できません。速度を上げてください。")
+        return None
+    
+    sqrt_disc = np.sqrt(disc)
+    tan1 = (-b + sqrt_disc) / (2*a)
+    tan2 = (-b - sqrt_disc) / (2*a)
+    
+    angles = []
+    for tan_theta in [tan1, tan2]:
+        angle_rad = np.arctan(tan_theta)
+        angle_deg = np.rad2deg(angle_rad)
+        if -90 < angle_deg < 90:
+            angles.append(angle_deg)
+    
+    return angles if angles else None
 
-ax.scatter([trajectory[-1, 0]], [trajectory[-1, 1]], [trajectory[-1, 2]], 
-           color='green', s=100, label='End', marker='s')
 
-ax.set_xlabel('X (m)', fontsize=12)
-ax.set_ylabel('Y (m)', fontsize=12)
-ax.set_zlabel('Z (m)', fontsize=12)
-ax.set_title(f'Ball Trajectory with Bounce\nAngle: {angle}°, Power: {power}, Spin: {spin} rad/s', 
-             fontsize=14)
-ax.legend()
-ax.grid(True, alpha=0.3)
+height = 10.0
+v0 = 50.0
 
-max_range = max(np.max(np.abs(trajectory[:, 0])), 
-                np.max(np.abs(trajectory[:, 1])),
-                np.max(trajectory[:, 2])) if len(trajectory) > 0 else 10
-ax.set_xlim([0, max_range * 1.1])
-ax.set_ylim([-max_range * 0.5, max_range * 0.5])
-ax.set_zlim([0, max_range * 0.6])
+#simulate_ball(v0=v0, angle_deg=30, h0=height)
 
-distance = np.sqrt(trajectory[-1, 0]**2 + trajectory[-1, 1]**2)
-max_height = np.max(trajectory[:, 2])
-flight_time = len(trajectory) * dt
+target_x = 40
+target_y = 0
+angles = calc_angle_for_target(v0=v0, h0=height, target_x=target_x, target_y=target_y)
 
-info_text = f'Distance: {distance:.2f} m\nMax Height: {max_height:.2f} m\nFlight Time: {flight_time:.2f} s'
-if len(bounce_positions) > 0:
-    info_text += f'\nBounces: {len(bounce_positions)}'
-ax.text2D(0.02, 0.98, info_text, transform=ax.transAxes, 
-          fontsize=10, verticalalignment='top',
-          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-
-plt.tight_layout()
-plt.show()
+if angles:
+    print("到達可能な発射角度:", angles)
+    simulate_ball(v0=v0, angle_deg=angles[0], h0=height, target=(target_x, target_y))

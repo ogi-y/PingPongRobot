@@ -1,83 +1,42 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import numpy as np 
 
 g = 9.81
 
-def simulate_ball(v0, angle_deg, h0=0, restitution=0.8, dt=0.001, t_max=10, target=None):
-    """
-    ボールの放物運動＋バウンドを計算して描画する関数
-    v0: 初速度[m/s]
-    angle_deg: 発射角度[度]
-    h0: 発射高さ[m]
-    restitution: 反発係数
-    target: (x, y) 形式で目標地点を指定（省略可）
-    """
-    angle = np.deg2rad(angle_deg)
-    vx = v0 * np.cos(angle)
-    vy = v0 * np.sin(angle)
-    
-    x, y = [0], [h0]
-    px, py = 0, h0
-    t = 0
-    
-    while t < t_max:
-        t += dt
-        vy -= g * dt
-        new_x = px + vx * dt
-        new_y = py + vy * dt
-        
-        if new_y < 0:
-            t_collision = -py / vy
-            collision_x = px + vx * t_collision
-            
-            x.append(collision_x)
-            y.append(0)
-            
-            remaining_t = dt - t_collision
-            vy = -vy * restitution
-            
-            if abs(vy) < 0.5:
-                break
-            
-            px = collision_x
-            py = 0
-            vy -= g * remaining_t
-            new_x = px + vx * remaining_t
-            new_y = py + vy * remaining_t
-        
-        x.append(new_x)
-        y.append(max(0, new_y))
-        px, py = new_x, new_y
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(x, y, label="Trajectory", color="blue", linewidth=2)
-    plt.xlabel("x [m]")
-    plt.ylabel("y [m]")
-    plt.grid(True, alpha=0.3)
-    plt.title(f"Ball Trajectory (v0={v0} m/s, angle={angle_deg}°)")
-    
-    plt.scatter(0, h0, color="red", marker="o", s=100, label="Launch Point", zorder=5)
-    plt.text(0, h0 + 1, "Launch", color="red", ha="center")
-    
-    if target is not None:
-        tx, ty = target
-        plt.scatter(tx, ty, color="green", marker="x", s=150, linewidths=3, label="Target Point", zorder=5)
-        plt.text(tx, ty + 1, f"Target ({tx:.1f}, {ty:.1f})", color="green", ha="center")
-    
-    plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+launch_positions = {
+    0: {'x': 0, 'y': 0, 'z': 10.0, 'label': '左'},
+    1: {'x': 20, 'y': 0, 'z': 10.0, 'label': '中央'},
+    2: {'x': 40, 'y': 0, 'z': 10.0, 'label': '右'}
+}
 
+target_positions = {
+    0: {'x': 10, 'y': 50, 'z': 0, 'label': '左上'},
+    1: {'x': 20, 'y': 50, 'z': 0, 'label': '中央上'},
+    2: {'x': 30, 'y': 50, 'z': 0, 'label': '右上'},
+    3: {'x': 10, 'y': 30, 'z': 0, 'label': '左中'},
+    4: {'x': 20, 'y': 30, 'z': 0, 'label': '中央'},
+    5: {'x': 30, 'y': 30, 'z': 0, 'label': '右中'},
+    6: {'x': 10, 'y': 10, 'z': 0, 'label': '左下'},
+    7: {'x': 20, 'y': 10, 'z': 0, 'label': '中央下'},
+    8: {'x': 30, 'y': 10, 'z': 0, 'label': '右下'}
+}
 
-def calc_angle_for_target(v0, h0, target_x, target_y=0):
-    """
-    指定した速度で目標地点に到達するための発射角度を計算
-    放物線の式: y = x*tan(θ) - g*x²/(2*v0²*cos²(θ)) + h0
-    目標点で y = target_y となる θ を求める
-    """
-    dx = target_x
-    dy = target_y - h0
+def calc_azimuth_angle_3d(x_start, y_start, x_target, y_target):
+    dx = x_target - x_start
+    dy = y_target - y_start
+    
+    azimuth_rad = np.arctan2(dx, dy)
+    azimuth_deg = np.rad2deg(azimuth_rad)
+    
+    return azimuth_deg
+
+def calc_horizontal_distance(x_start, y_start, x_target, y_target):
+    dx = x_target - x_start
+    dy = y_target - y_start
+    return np.sqrt(dx**2 + dy**2)
+
+def calc_angle_for_target_2d(v0, z0, horizontal_dist, z_target):
+    dx = horizontal_dist
+    dy = z_target - z0
     
     v0_sq = v0 ** 2
     g_dx_sq = g * dx ** 2
@@ -89,7 +48,6 @@ def calc_angle_for_target(v0, h0, target_x, target_y=0):
     disc = b**2 - 4*a*c
     
     if disc < 0:
-        print("指定条件では到達できません。速度を上げてください。")
         return None
     
     sqrt_disc = np.sqrt(disc)
@@ -105,16 +63,103 @@ def calc_angle_for_target(v0, h0, target_x, target_y=0):
     
     return angles if angles else None
 
+def calc_min_velocity_3d(z0, horizontal_dist, z_target):
+    dx = horizontal_dist
+    dy = z_target - z0
+    
+    if dx == 0:
+        return abs(dy) * np.sqrt(g / 2)
+    
+    discriminant = g * dx * (g * dx + 2 * dy)
+    if discriminant < 0:
+        v_min = np.sqrt(g * np.sqrt(dx**2 + dy**2))
+    else:
+        v_min = np.sqrt(0.5 * (g * dx + np.sqrt(discriminant)))
+    
+    return v_min
 
-height = 10.0
-v0 = 50.0
+def fire(launch_pos, target_pos, v0=50.0):
+    if launch_pos not in launch_positions:
+        print(f"エラー: 発射位置 {launch_pos} は無効です（0-2を指定）")
+        return None
+    
+    if target_pos not in target_positions:
+        print(f"エラー: 着弾目標 {target_pos} は無効です（0-8を指定）")
+        return None
+    
+    launch = launch_positions[launch_pos]
+    target = target_positions[target_pos]
+    
+    print(f"\n=== fire({launch_pos}, {target_pos}) ===")
+    print(f"発射位置: {launch['label']} ({launch['x']}, {launch['y']}, {launch['z']})")
+    print(f"着弾目標: {target['label']} ({target['x']}, {target['y']}, {target['z']})")
+    
+    azimuth = calc_azimuth_angle_3d(
+        launch['x'], launch['y'],
+        target['x'], target['y']
+    )
+    print(f"方位角（水平方向）: {azimuth:.2f}° （y軸正方向が0°、右: +, 左: -）")
+    
+    horizontal_dist = calc_horizontal_distance(
+        launch['x'], launch['y'],
+        target['x'], target['y']
+    )
+    print(f"水平距離: {horizontal_dist:.2f} m")
+    print(f"高さ差: {target['z'] - launch['z']:.2f} m")
+    
+    angles = calc_angle_for_target_2d(
+        v0=v0,
+        z0=launch['z'],
+        horizontal_dist=horizontal_dist,
+        z_target=target['z']
+    )
+    
+    if angles is None:
+        v_min = calc_min_velocity_3d(
+            z0=launch['z'],
+            horizontal_dist=horizontal_dist,
+            z_target=target['z']
+        )
+        print(f"到達不可能: 速度 {v0:.2f} m/s では届きません")
+        print(f"必要最小速度: {v_min:.2f} m/s")
+        
+        result = {
+            'launch_pos': launch_pos,
+            'target_pos': target_pos,
+            'launch': launch,
+            'target': target,
+            'v0': v0,
+            'azimuth': azimuth,
+            'horizontal_distance': horizontal_dist,
+            'height_diff': target['z'] - launch['z'],
+            'reachable': False,
+            'min_velocity': v_min
+        }
+        return result
+    
+    print(f"到達可能な仰角: {[f'{a:.2f}°' for a in angles]}")
+    
+    selected_angle = angles[0]
+    print(f"使用する仰角: {selected_angle:.2f}°")
+    print(f"発射速度: {v0:.2f} m/s")
+    result = {
+        'launch_pos': launch_pos,
+        'target_pos': target_pos,
+        'launch': launch,
+        'target': target,
+        'v0': v0,
+        'azimuth': azimuth,
+        'elevation': selected_angle,
+        'horizontal_distance': horizontal_dist,
+        'height_diff': target['z'] - launch['z'],
+        'reachable': True
+    }
+    
+    return result
 
-#simulate_ball(v0=v0, angle_deg=30, h0=height)
-
-target_x = 40
-target_y = 0
-angles = calc_angle_for_target(v0=v0, h0=height, target_x=target_x, target_y=target_y)
-
-if angles:
-    print("到達可能な発射角度:", angles)
-    simulate_ball(v0=v0, angle_deg=angles[0], h0=height, target=(target_x, target_y))
+if __name__ == "__main__":
+    result1 = fire(1, 7)
+    
+    result2 = fire(0, 2)
+    
+    result3 = fire(2, 6)
