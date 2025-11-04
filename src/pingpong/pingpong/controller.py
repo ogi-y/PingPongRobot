@@ -83,7 +83,7 @@ class ServeController(Node):
         elif self.level == 1:
             speed, spin = 0.6, 0.5
             course_x = random.choice(["left", "right", "center"])
-            course_y = random.choice(["front", "middle", "back"])
+            course_y = random.choice(["middle", "back"])
             spin_dir = random.choice(["top", "back", "left", "right"])
             serve_pos = random.choice(self.robo_pos_choices[self.robo_pos])
         else:
