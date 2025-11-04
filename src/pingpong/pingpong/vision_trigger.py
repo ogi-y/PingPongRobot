@@ -8,10 +8,11 @@ class VisionTriggerTest(Node):
         super().__init__('vision_trigger_test')
         self.pub_age = self.create_publisher(Bool, '/age_trigger', 10)
         self.pub_body = self.create_publisher(Bool, '/body_trigger', 10)
+        self.pub_serve = self.create_publisher(Bool, '/serve_trigger', 10)
 
     def test_loop(self):
         while rclpy.ok():
-            cmd = input("Enter command (a=age, b=body, q=quit): ")
+            cmd = input("Enter command (a=age, b=body, s=serve, q=quit): ")
             if cmd == 'a':
                 self.pub_age.publish(Bool(data=True))
                 time.sleep(0.1)
@@ -20,6 +21,10 @@ class VisionTriggerTest(Node):
                 self.pub_body.publish(Bool(data=True))
                 time.sleep(0.1)
                 self.pub_body.publish(Bool(data=False))
+            elif cmd == 's':
+                self.pub_serve.publish(Bool(data=True))
+                time.sleep(0.1)
+                self.pub_serve.publish(Bool(data=False))
             elif cmd == 'q':
                 break
 
