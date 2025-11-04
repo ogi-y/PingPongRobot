@@ -27,6 +27,7 @@ setup(
         'console_scripts': [
             'image_publisher = pingpong.image_publisher:main',
             'age_estimation = pingpong.age_estimation:main',
+            'vision_processor = pingpong.vision_processor:main',
             'sample_image_subscriber = pingpong.sample_image_subscriber:main',
         ],
     },
