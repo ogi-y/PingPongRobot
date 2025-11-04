@@ -6,6 +6,7 @@ from cv_bridge import CvBridge
 import cv2
 from deepface import DeepFace
 from ultralytics import YOLO
+import json
 
 class VisionProcessor(Node):
     def __init__(self):
@@ -14,13 +15,17 @@ class VisionProcessor(Node):
         self.sub_age_trigger = self.create_subscription(Bool, '/age_trigger', self.age_trigger_callback, 10)
         self.sub_body_trigger = self.create_subscription(Bool, '/body_trigger', self.body_trigger_callback, 10)
         self.pub_age = self.create_publisher(String, '/age', 10)
-        self.pub_body = self.create_publisher(String, '/body', 10)
+        self.pub_player_pos = self.create_publisher(String, '/player_pos', 10)
         self.bridge = CvBridge()
-        self.model_yolo = YOLO('yolov8n.pt')
+        self.model_yolo = YOLO('yolov8n-pose.pt')
 
         self.latest_frame = None
         self.prev_age_trigger = False
         self.prev_body_trigger = False
+
+        self.declare_parameter('left_threshold', 0.33)
+        self.declare_parameter('right_threshold', 0.66)
+
         self.get_logger().info('Vision Processor Node Initialized')
 
     def image_callback(self, msg):
@@ -52,7 +57,7 @@ class VisionProcessor(Node):
         if self.prev_body_trigger != msg.data:
             self.get_logger().info(f'Body trigger changed: {msg.data}')
             self.prev_body_trigger = msg.data
-            
+
         if not msg.data:
             return
         
@@ -61,12 +66,27 @@ class VisionProcessor(Node):
             return
         
         results = self.model_yolo(self.latest_frame, verbose=False)
-        for result in results:
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
-                msg_str = f"class_id:{cls_id}, confidence:{conf:.2f}"
-                self.pub_body.publish(String(data=msg_str))
+        if not results or len(results[0].keypoints) == 0:
+            self.get_logger().info('No bodies detected')
+            return
+        # ここでプレイヤーを識別　（今回は最初の人のみ）
+        player_keypoints = results[0].keypoints.xy[0].cpu().numpy()
+        h, w, _ = self.latest_frame.shape
+        # 体の中心位置を計算 （今回は鼻の位置）
+        player_x, player_y = player_keypoints[0]
+
+        left_threshold = self.get_parameter('left_threshold').value
+        right_threshold = self.get_parameter('right_threshold').value
+
+        if player_x < w * left_threshold:
+            position = "left"
+        elif player_x > w * right_threshold:
+            position = "right"
+        else:
+            position = "center"
+
+        msg_data = {"pos": position, "x": int(player_x), "y": int(player_y)}
+        self.pub_player_pos.publish(String(data=json.dumps(msg_data)))
 
 def main():
     rclpy.init()
