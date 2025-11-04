@@ -47,12 +47,16 @@ class VisionProcessor(Node):
         results = DeepFace.analyze(self.latest_frame, actions=['age'], enforce_detection=False)
         if not isinstance(results, list):
             results = [results]
-        for idx, result in enumerate(results, 1):
-            age = int(result['age'])
-            msg_str = f"id:{idx}, age:{age}"
-            # self.get_logger().info(msg_str)
-            self.pub_age.publish(String(data=msg_str))
         
+        age_list = []
+        for idx, result in enumerate(results, 1):
+            if 'age' not in result:
+                continue
+            age_data = {"id": idx, "age": int(result['age'])}
+            age_list.append(age_data)
+        msg_data = {"ages": age_list}
+        self.pub_age.publish(String(data=json.dumps(msg_data)))
+
     def body_trigger_callback(self, msg):
         if self.prev_body_trigger != msg.data:
             self.get_logger().info(f'Body trigger changed: {msg.data}')
@@ -75,8 +79,9 @@ class VisionProcessor(Node):
         # 体の中心位置を計算 （今回は鼻の位置）
         player_x, player_y = player_keypoints[0]
 
-        left_threshold = self.get_parameter('left_threshold').value
-        right_threshold = self.get_parameter('right_threshold').value
+        left_threshold = self.get_parameter('left_threshold').get_parameter_value().double_value
+        right_threshold = self.get_parameter('right_threshold').get_parameter_value().double_value
+
 
         if player_x < w * left_threshold:
             position = "left"
@@ -93,6 +98,7 @@ def main():
     node = VisionProcessor()
     executor = rclpy.executors.MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)
+    del node.model_yolo
     node.destroy_node()
     rclpy.shutdown()
 
