@@ -199,7 +199,7 @@ def print_solutions(solutions: List[Solution]):
 def main():
     calculator = BallisticCalculator3D(g=9.81)
     
-    start_z = 1.0
+    start_z = 0.2
     target = Point3D(x=5.0, y=8.0, z=0.0)
     velocities = [8, 10, 12, 15, 18]
     
@@ -213,7 +213,7 @@ def main():
     print_solutions(solutions)
     
     if solutions:
-        plot_trajectories_3d(solutions, target, start_z)
+        #plot_trajectories_3d(solutions, target, start_z)
         plot_trajectories_2d(solutions, target, start_z)
 
 if __name__ == "__main__":
