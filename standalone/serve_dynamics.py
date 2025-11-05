@@ -559,7 +559,9 @@ def main():
     result2 = find_precise_solution(
         target, start_z, velocities,
         strategy=OptimizationStrategy.TARGET_ANGLE,
-        target_elevation=-30.0
+        target_elevation=80.0,
+        spin_rate=500,
+        spin_axis=(0, 0, 1)
     )
     
     if result2:
