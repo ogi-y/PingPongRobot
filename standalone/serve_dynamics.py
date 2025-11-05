@@ -316,9 +316,9 @@ class PreciseBallisticCalculator(BallisticCalculator3D):
                 return 1e10
             if el < -np.pi/2 or el > np.pi/2:
                 return 1e10
-            
-            trajectory = self.simulate_with_drag(v0, az, el, spin_rate, spin_axis, start_z=start_z)
-            
+
+            trajectory = self.simulate_with_drag(v0, az, el, spin_rate, rotate_spin_axis(spin_axis, az, el), start_z=start_z)
+
             if not trajectory or len(trajectory) < 2:
                 return 1e10
             
@@ -341,7 +341,7 @@ class PreciseBallisticCalculator(BallisticCalculator3D):
         if result.success:
             v0_opt, az_opt, el_opt = result.x
             final_trajectory = self.simulate_with_drag(v0_opt, az_opt, el_opt, 
-                                                       spin_rate, spin_axis, start_z=start_z)
+                                                       spin_rate, rotate_spin_axis(spin_axis, az_opt, el_opt), start_z=start_z)
         else:
             final_trajectory = []
         
@@ -358,6 +358,20 @@ class PreciseBallisticCalculator(BallisticCalculator3D):
             'message': result.message
         }
 
+def rotate_spin_axis(spin_axis_local, azimuth, elevation):
+    # 回転行列を使ってローカルベクトルをワールド座標に変換する
+    ca, sa = np.cos(azimuth), np.sin(azimuth)
+    ce, se = np.cos(elevation), np.sin(elevation)
+
+    # 射出方向の座標系
+    forward = np.array([ce*ca, ce*sa, se])   # 射出方向 (z local)
+    right   = np.array([-sa, ca, 0])         # 右方向 (x local)
+    up      = np.cross(forward, right)       # 上方向 (y local)
+
+    local_vec = spin_axis_local[0] * right + \
+                spin_axis_local[1] * up + \
+                spin_axis_local[2] * forward
+    return local_vec / np.linalg.norm(local_vec)
 
 def find_precise_solution(target: Point3D, start_z: float, velocities: List[float],
                          strategy: OptimizationStrategy = OptimizationStrategy.MIN_ELEVATION,
@@ -545,7 +559,7 @@ def main():
     result1 = find_precise_solution(
         target, start_z, velocities,
         strategy=OptimizationStrategy.MIN_ELEVATION,
-        spin_rate=1000,  # 100 rad/s のバックスピン
+        spin_rate=500,  # 100 rad/s のバックスピン
         spin_axis=(0, 0, 1)  # X軸周りの回転
     )
     
@@ -559,9 +573,9 @@ def main():
     result2 = find_precise_solution(
         target, start_z, velocities,
         strategy=OptimizationStrategy.TARGET_ANGLE,
-        target_elevation=80.0,
+        target_elevation=40.0,
         spin_rate=500,
-        spin_axis=(0, 0, 1)
+        spin_axis=(1, 0, 10)
     )
     
     if result2:
