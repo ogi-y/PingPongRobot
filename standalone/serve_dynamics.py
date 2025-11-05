@@ -90,7 +90,7 @@ class BallisticCalculator3D:
         return trajectory
     
     def find_solutions(self, velocities: List[float], target: Point3D, 
-                      start_z: float = 0.0) -> List[Solution]:
+                      start_z: float = 0.0, allow_neg_elev: bool = True) -> List[Solution]:
         solutions = []
         max_dist = np.sqrt(target.x**2 + target.y**2)
         
@@ -105,7 +105,10 @@ class BallisticCalculator3D:
             elev_high_deg = elev_high * 180 / np.pi
             elev_low_deg = elev_low * 180 / np.pi
             
-            if 0 <= elev_high_deg <= 90:
+            min_elev = -90.0 if allow_neg_elev else 0.0
+            max_elev = 90.0
+
+            if min_elev <= elev_high_deg <= max_elev:
                 trajectory = self.calculate_trajectory(v0, azimuth_high, elev_high, start_z, max_dist)
                 solutions.append(Solution(
                     v0=v0,
@@ -113,8 +116,8 @@ class BallisticCalculator3D:
                     elevation=elev_high_deg,
                     trajectory=trajectory
                 ))
-            
-            if 0 <= elev_low_deg <= 90 and abs(elev_high_deg - elev_low_deg) > 0.1:
+
+            if min_elev <= elev_low_deg <= max_elev and abs(elev_high_deg - elev_low_deg) > 0.1:
                 trajectory = self.calculate_trajectory(v0, azimuth_low, elev_low, start_z, max_dist)
                 solutions.append(Solution(
                     v0=v0,
@@ -309,7 +312,9 @@ class PreciseBallisticCalculator(BallisticCalculator3D):
             v0, az, el = params
             
             # パラメータの妥当性チェック
-            if v0 <= 0 or el < 0 or el > np.pi/2:
+            if v0 <= 0:
+                return 1e10
+            if el < -np.pi/2 or el > np.pi/2:
                 return 1e10
             
             trajectory = self.simulate_with_drag(v0, az, el, spin_rate, spin_axis, start_z=start_z)
@@ -361,7 +366,8 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
                          custom_scorer: Optional[Callable[[Solution], float]] = None,
                          spin_rate: float = 0,
                          spin_axis: Tuple[float, float, float] = (0, 0, 1),
-                         verbose: bool = True) -> Optional[dict]:
+                         verbose: bool = True,
+                         allow_neg_elev: bool = True) -> Optional[dict]:
     """
     シンプルモデルで初期解を求め、精密モデルで最適化
     
