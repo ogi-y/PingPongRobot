@@ -68,6 +68,34 @@ def simulate_trajectory(v, theta, phi, z0=Z0, restitution=0.9,
     return np.array(xs), np.array(ys), np.array(zs), bounces
 
 
+def evaluate_serve(v, theta, phi, target_my = None, target_oppo = None):
+    """
+    サーブの評価関数
+
+    target_my: 自分側の目標座標 (x, y)
+    target_oppo: 相手側の目標座標 (x, y)
+    """
+    x, y, z, bounces = simulate_trajectory(v, theta, phi)
+
+    if len(bounces) < 2:
+        return -100.0
+
+    mask = (y > NET_Y - 0.05) & (y < NET_Y + 0.05)
+    if np.any(mask):
+        min_z = np.min(z[mask])
+    else:
+        min_z = np.min(z)
+    if min_z < NET_HEIGHT:
+        return -100.0
+    
+    bounce1 = bounces[0]
+    bounce2 = bounces[1]
+
+    err1 = (bounce1[0] - target_my[0])**2 + (bounce1[1] - target_my[1])**2 if target_my else 0.0
+    err2 = (bounce2[0] - target_oppo[0])**2 + (bounce2[1] - target_oppo[1])**2 if target_oppo else 0.0
+
+    return -(err1 + err2)
+
 # ========== 卓球台を描画 (3D) ==========
 def draw_table_3d(ax):
     # 台の輪郭
