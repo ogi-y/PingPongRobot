@@ -544,7 +544,8 @@ def main():
     # パラメータ設定
     start_z = 0.3
     target = Point3D(x=2.74/2, y=1.525, z=0)  # 卓球台の反対側中央くらい
-    velocities = [5,10,15]
+    #velocities = [5,10,15]
+    velocities = list(range(1, 21))
     
     print(f"\n📍 設定:")
     print(f"  ロボット位置: X=0m, Y=0m, Z={start_z}m")
