@@ -15,13 +15,21 @@ class Point3D:
 @dataclass
 class Solution:
     v0: float
-    azimuth: float
-    elevation: float
+    azimuth: float # rad
+    elevation: float # rad
     trajectory: List[Point3D]
     
     @property
     def total_angle(self):
         return np.sqrt(self.azimuth**2 + self.elevation**2)
+    
+    @property
+    def azimuth_deg(self):
+        return self.azimuth * 180 / np.pi
+
+    @property
+    def elevation_deg(self):
+        return self.elevation * 180 / np.pi
 
 class OptimizationStrategy(Enum):
     """最適化戦略の種類"""
@@ -61,7 +69,7 @@ class BallisticCalculator3D:
         high = max(elev1, elev2)
         low = min(elev1, elev2)
         
-        return (azimuth, high, azimuth, low)
+        return (azimuth, high, low)
     
     def calculate_trajectory(self, v0: float, azimuth: float, elevation: float, 
                             start_z: float, max_dist: float, steps: int = 100) -> List[Point3D]:
@@ -69,12 +77,9 @@ class BallisticCalculator3D:
         vy = v0 * np.cos(elevation) * np.sin(azimuth)
         vz = v0 * np.sin(elevation)
         
-        v_horizontal = np.sqrt(vx**2 + vy**2)
+        #v_horizontal = np.sqrt(vx**2 + vy**2)
         
-        if v_horizontal > 0:
-            time_of_flight = (vz + np.sqrt(vz * vz + 2 * self.g * start_z)) / self.g
-        else:
-            time_of_flight = 0
+        time_of_flight = (vz + np.sqrt(vz * vz + 2 * self.g * start_z)) / self.g
         
         trajectory = []
         for i in range(steps + 1):
@@ -100,29 +105,26 @@ class BallisticCalculator3D:
             if angles is None:
                 continue
             
-            azimuth_high, elev_high, azimuth_low, elev_low = angles
+            azimuth, elev_high, elev_low = angles
             
-            elev_high_deg = elev_high * 180 / np.pi
-            elev_low_deg = elev_low * 180 / np.pi
-            
-            min_elev = -90.0 if allow_neg_elev else 0.0
-            max_elev = 90.0
+            min_elev = np.deg2rad(-90) if allow_neg_elev else 0.0
+            max_elev = np.deg2rad(90.0)
 
-            if min_elev <= elev_high_deg <= max_elev:
-                trajectory = self.calculate_trajectory(v0, azimuth_high, elev_high, start_z, max_dist)
+            if min_elev <= elev_high <= max_elev:
+                trajectory = self.calculate_trajectory(v0, azimuth, elev_high, start_z, max_dist)
                 solutions.append(Solution(
                     v0=v0,
-                    azimuth=azimuth_high * 180 / np.pi,
-                    elevation=elev_high_deg,
+                    azimuth=azimuth,
+                    elevation=elev_high,
                     trajectory=trajectory
                 ))
 
-            if min_elev <= elev_low_deg <= max_elev and abs(elev_high_deg - elev_low_deg) > 0.1:
-                trajectory = self.calculate_trajectory(v0, azimuth_low, elev_low, start_z, max_dist)
+            if min_elev <= elev_low <= max_elev and abs(elev_high - elev_low) > 0.1:
+                trajectory = self.calculate_trajectory(v0, azimuth, elev_low, start_z, max_dist)
                 solutions.append(Solution(
                     v0=v0,
-                    azimuth=azimuth_low * 180 / np.pi,
-                    elevation=elev_low_deg,
+                    azimuth=azimuth,
+                    elevation=elev_low,
                     trajectory=trajectory
                 ))
         
@@ -247,8 +249,8 @@ class PreciseBallisticCalculator(BallisticCalculator3D):
                 return np.array([0.0, 0.0, -self.g])
             
             # 空気抵抗
-            drag_force = -0.5 * self.rho * self.Cd * self.A * v_mag
-            a_drag = drag_force * vel / self.mass
+            drag_force = -0.5 * self.rho * self.Cd * self.A * v_mag * v_mag
+            a_drag = drag_force * vel / (self.mass * v_mag)
             
             # マグヌス力 F = Cm * rho * A * r * omega × v
             magnus_force = self.Cm * self.rho * self.A * self.radius * np.cross(omega_vec, vel)
@@ -426,8 +428,8 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
     if verbose:
         print(f"\n🎯 選択された初期解 (戦略: {strategy.value}):")
         print(f"  速度:   {best_simple.v0:.2f} m/s")
-        print(f"  方位角: {best_simple.azimuth:.2f}°")
-        print(f"  仰角:   {best_simple.elevation:.2f}°")
+        print(f"  方位角: {best_simple.azimuth_deg:.2f}°")
+        print(f"  仰角:   {best_simple.elevation_deg:.2f}°")
         print(f"  合計角度: {best_simple.total_angle:.2f}°")
     
     # Step 3: 精密モデルで最適化
@@ -439,8 +441,8 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
     precise_calc = PreciseBallisticCalculator()
     initial_guess = [
         best_simple.v0,
-        best_simple.azimuth * np.pi / 180,
-        best_simple.elevation * np.pi / 180
+        best_simple.azimuth,
+        best_simple.elevation
     ]
     
     result = precise_calc.optimize_parameters(
@@ -456,8 +458,8 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
             print(f"{'='*70}")
             print(f"\n📈 精密解:")
             print(f"  速度:   {result['v0']:.2f} m/s (初期値から {result['v0']-best_simple.v0:+.2f} m/s)")
-            print(f"  方位角: {result['azimuth_deg']:.2f}° (初期値から {result['azimuth_deg']-best_simple.azimuth:+.2f}°)")
-            print(f"  仰角:   {result['elevation_deg']:.2f}° (初期値から {result['elevation_deg']-best_simple.elevation:+.2f}°)")
+            print(f"  方位角: {result['azimuth_deg']:.2f}° (初期値から {result['azimuth_deg']-best_simple.azimuth_deg:+.2f}°)")
+            print(f"  仰角:   {result['elevation_deg']:.2f}° (初期値から {result['elevation_deg']-best_simple.elevation_deg:+.2f}°)")
             print(f"  誤差:   {result['error']*1000:.2f} mm")
             if result['iterations']:
                 print(f"  反復回数: {result['iterations']}")
@@ -560,10 +562,10 @@ def main():
     result1 = find_precise_solution(
         target, start_z, velocities,
         strategy=OptimizationStrategy.MIN_ELEVATION,
-        spin_rate=500,  # 100 rad/s のバックスピン
-        spin_axis=(0, 0, 1)  # X軸周りの回転
-    )
-    
+        spin_rate=500,
+        spin_axis=(0, 0, 1)
+        )
+
     if result1:
         plot_comparison(result1['initial_solution'], result1, target, start_z)
     
