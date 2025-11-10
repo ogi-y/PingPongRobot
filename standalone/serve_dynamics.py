@@ -21,7 +21,7 @@ class Solution:
     
     @property
     def total_angle(self):
-        return np.sqrt(self.azimuth**2 + self.elevation**2)
+        return abs(self.azimuth) + abs(self.elevation)
     
     @property
     def azimuth_deg(self):
@@ -44,8 +44,8 @@ class OptimizationStrategy(Enum):
 class BallisticCalculator3D:
     def __init__(self, g: float = 9.81):
         self.g = g
-    
-    def solve_angles(self, v0: float, target: Point3D, start_z: float = 0.0) -> Optional[Tuple[float, float, float, float]]:
+
+    def solve_angles(self, v0: float, target: Point3D, start_z: float = 0.0) -> Optional[Tuple[float, float, float]]:
         horizontal_dist = np.sqrt(target.x**2 + target.y**2)
         dz = target.z - start_z
         
@@ -76,8 +76,6 @@ class BallisticCalculator3D:
         vx = v0 * np.cos(elevation) * np.cos(azimuth)
         vy = v0 * np.cos(elevation) * np.sin(azimuth)
         vz = v0 * np.sin(elevation)
-        
-        #v_horizontal = np.sqrt(vx**2 + vy**2)
         
         time_of_flight = (vz + np.sqrt(vz * vz + 2 * self.g * start_z)) / self.g
         
@@ -392,7 +390,7 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
         start_z: 開始高さ
         velocities: テストする速度のリスト
         strategy: 初期解選択戦略
-        target_elevation: 目標仰角（度）
+        target_elevation: 目標仰角（rad）
         target_velocity: 目標速度（m/s）
         custom_scorer: カスタム評価関数
         spin_rate: スピン速度 (rad/s)
@@ -430,7 +428,7 @@ def find_precise_solution(target: Point3D, start_z: float, velocities: List[floa
         print(f"  速度:   {best_simple.v0:.2f} m/s")
         print(f"  方位角: {best_simple.azimuth_deg:.2f}°")
         print(f"  仰角:   {best_simple.elevation_deg:.2f}°")
-        print(f"  合計角度: {best_simple.total_angle:.2f}°")
+        print(f"  合計角度: {np.rad2deg(best_simple.total_angle):.2f}°")
     
     # Step 3: 精密モデルで最適化
     if verbose:
@@ -576,7 +574,7 @@ def main():
     result2 = find_precise_solution(
         target, start_z, velocities,
         strategy=OptimizationStrategy.TARGET_ANGLE,
-        target_elevation=40.0,
+        target_elevation=np.deg2rad(40.0),  # rad
         spin_rate=500,
         spin_axis=(1, 0, 10)
     )
