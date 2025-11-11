@@ -223,8 +223,8 @@ def plot_3views(trajectories):
 def main():
     robo_pos = (0.5, 0, 0.27)
     target_my = None
-    target_oppo = (-0.5, 1.5)
-    v_list = np.arange(0.1, 5.0, 0.1)
+    target_oppo = (0.5, 2.5)
+    v_list = np.arange(2.0, 4.0, 0.1)
     mode = "speed"
     target_speed = 0
 
