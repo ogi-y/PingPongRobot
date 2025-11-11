@@ -1,608 +1,354 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from dataclasses import dataclass
-from typing import List, Optional, Tuple, Callable
-from scipy.optimize import minimize
-from enum import Enum
+import time
 
-@dataclass
-class Point3D:
-    x: float
-    y: float
-    z: float
+g = 9.80665  # [m/s^2]
 
-@dataclass
-class Solution:
-    v0: float
-    azimuth: float # rad
-    elevation: float # rad
-    trajectory: List[Point3D]
-    
-    @property
-    def total_angle(self):
-        return abs(self.azimuth) + abs(self.elevation)
-    
-    @property
-    def azimuth_deg(self):
-        return self.azimuth * 180 / np.pi
+# 卓球台パラメータ
+TABLE_LENGTH = 2.74   # y方向（前後）
+TABLE_WIDTH = 1.525   # x方向（左右）
+NET_Y = TABLE_LENGTH / 2
+NET_HEIGHT = 0.1525
 
-    @property
-    def elevation_deg(self):
-        return self.elevation * 180 / np.pi
+# ボール物性（標準値：卓球ボール）
+R_BALL = 0.02           # 半径 [m]（40mm球）
+A_CROSS = np.pi * R_BALL**2  # 正面投影面積 [m^2]
+M_BALL = 0.0027         # 質量 [kg]（約2.7 g）
+RHO_AIR = 1.225         # 空気密度 [kg/m^3]
 
-class OptimizationStrategy(Enum):
-    """最適化戦略の種類"""
-    MIN_ANGLE = "minimum_total_angle"
-    MIN_ELEVATION = "minimum_elevation"
-    MAX_VELOCITY = "maximum_velocity"
-    MIN_VELOCITY = "minimum_velocity"
-    TARGET_ANGLE = "target_angle"
-    TARGET_VELOCITY = "target_velocity"
-    CUSTOM = "custom"
+# ========== 軌道シミュレーション（ドラッグ＋マグヌス） ==========
+def simulate_trajectory(v0, theta, phi, robo_pos,
+                        omega_local=(0.0, 0.0, 0.0),
+                        C_d=0.5, C_l=0.2,
+                        m=M_BALL,
+                        restitution=0.9,
+                        spin_restitution=0.9,
+                        tangential_friction=0.9,
+                        max_bounce=3,
+                        y_limit=TABLE_LENGTH*2,
+                        dt=0.001,
+                        max_time=10.0):
+    """
+    空気抵抗とマグヌス効果を含む数値シミュレーション（ニュートン運動方程式に基づく）
+    - v0: 初速の大きさ [m/s]
+    - theta: 仰角 [rad]
+    - phi: 水平角（右が正） [rad]
+    - robo_pos: 初期位置 (x, y, z)
+    - omega: 回転ベクトル (wx, wy, wz) [rad/s] （右手系）
+    - C_d: 抗力係数（球で ~0.4-0.6 の範囲）
+    - C_l: 揚力（マグヌス）係数のスケーリング（経験値で 0.0-0.4 程度）
+    - m: ボール質量 [kg]
+    - restitution: 法線方向の反発係数
+    - spin_restitution: バウンド後の回転保持率（0-1）
+    - tangential_friction: バウンドでの接線速度の減衰（0-1）
+    - dt: タイムステップ [s]
+    - max_time: 最大シミュレーション時間 [s]
+    """
 
-class BallisticCalculator3D:
-    def __init__(self, g: float = 9.81):
-        self.g = g
+    def local_to_global(omega_local):
+        v_dir = np.array([
+            np.cos(theta) * np.sin(phi),
+            np.cos(theta) * np.cos(phi),
+            np.sin(theta)
+        ])
+        v_dir /= np.linalg.norm(v_dir)
 
-    def solve_angles(self, v0: float, target: Point3D, start_z: float = 0.0) -> Optional[Tuple[float, float, float]]:
-        horizontal_dist = np.sqrt(target.x**2 + target.y**2)
-        dz = target.z - start_z
-        
-        azimuth = np.arctan2(target.y, target.x)
-        
-        a = self.g * horizontal_dist * horizontal_dist / (2 * v0 * v0)
-        b = -horizontal_dist
-        c = a + dz
-        
-        discriminant = b * b - 4 * a * c
-        
-        if discriminant < 0:
-            return None
-        
-        tan_elev1 = (-b + np.sqrt(discriminant)) / (2 * a)
-        tan_elev2 = (-b - np.sqrt(discriminant)) / (2 * a)
-        
-        elev1 = np.arctan(tan_elev1)
-        elev2 = np.arctan(tan_elev2)
-        
-        high = max(elev1, elev2)
-        low = min(elev1, elev2)
-        
-        return (azimuth, high, low)
-    
-    def calculate_trajectory(self, v0: float, azimuth: float, elevation: float, 
-                            start_z: float, max_dist: float, steps: int = 100) -> List[Point3D]:
-        vx = v0 * np.cos(elevation) * np.cos(azimuth)
-        vy = v0 * np.cos(elevation) * np.sin(azimuth)
-        vz = v0 * np.sin(elevation)
-        
-        time_of_flight = (vz + np.sqrt(vz * vz + 2 * self.g * start_z)) / self.g
-        
-        trajectory = []
-        for i in range(steps + 1):
-            t = (time_of_flight * i) / steps
-            x = vx * t
-            y = vy * t
-            z = start_z + vz * t - 0.5 * self.g * t * t
-            
-            dist = np.sqrt(x**2 + y**2)
-            if dist <= max_dist * 1.1 and z >= 0:
-                trajectory.append(Point3D(x=x, y=y, z=z))
-        
-        return trajectory
-    
-    def find_solutions(self, velocities: List[float], target: Point3D, 
-                      start_z: float = 0.0, allow_neg_elev: bool = True) -> List[Solution]:
-        solutions = []
-        max_dist = np.sqrt(target.x**2 + target.y**2)
-        
-        for v0 in velocities:
-            angles = self.solve_angles(v0, target, start_z)
-            
-            if angles is None:
-                continue
-            
-            azimuth, elev_high, elev_low = angles
-            
-            min_elev = np.deg2rad(-90) if allow_neg_elev else 0.0
-            max_elev = np.deg2rad(90.0)
+        # ローカル座標→ワールド座標変換
+        world_up = np.array([0, 0, 1])
+        right = np.cross(world_up, v_dir)
+        right /= np.linalg.norm(right)
+        up = np.cross(v_dir, right)
 
-            if min_elev <= elev_high <= max_elev:
-                trajectory = self.calculate_trajectory(v0, azimuth, elev_high, start_z, max_dist)
-                solutions.append(Solution(
-                    v0=v0,
-                    azimuth=azimuth,
-                    elevation=elev_high,
-                    trajectory=trajectory
-                ))
-
-            if min_elev <= elev_low <= max_elev and abs(elev_high - elev_low) > 0.1:
-                trajectory = self.calculate_trajectory(v0, azimuth, elev_low, start_z, max_dist)
-                solutions.append(Solution(
-                    v0=v0,
-                    azimuth=azimuth,
-                    elevation=elev_low,
-                    trajectory=trajectory
-                ))
-        
-        return solutions
-    
-    def select_best_solution(self, solutions: List[Solution], 
-                            strategy: OptimizationStrategy = OptimizationStrategy.MIN_ANGLE,
-                            target_elevation: Optional[float] = None,
-                            target_velocity: Optional[float] = None,
-                            custom_scorer: Optional[Callable[[Solution], float]] = None) -> Optional[Solution]:
-        """
-        複数の解から最適な解を選択
-        
-        Args:
-            solutions: 候補解のリスト
-            strategy: 選択戦略
-            target_elevation: 目標仰角（度）、TARGET_ANGLE戦略で使用
-            target_velocity: 目標速度（m/s）、TARGET_VELOCITY戦略で使用
-            custom_scorer: カスタム評価関数（値が小さいほど良い）
-        
-        Returns:
-            最適な解、または None
-        """
-        if not solutions:
-            return None
-        
-        if strategy == OptimizationStrategy.MIN_ANGLE:
-            return min(solutions, key=lambda s: s.total_angle)
-        
-        elif strategy == OptimizationStrategy.MIN_ELEVATION:
-            return min(solutions, key=lambda s: s.elevation)
-        
-        elif strategy == OptimizationStrategy.MAX_VELOCITY:
-            return max(solutions, key=lambda s: s.v0)
-        
-        elif strategy == OptimizationStrategy.MIN_VELOCITY:
-            return min(solutions, key=lambda s: s.v0)
-        
-        elif strategy == OptimizationStrategy.TARGET_ANGLE:
-            if target_elevation is None:
-                raise ValueError("target_elevation must be provided for TARGET_ANGLE strategy")
-            return min(solutions, key=lambda s: abs(s.elevation - target_elevation))
-        
-        elif strategy == OptimizationStrategy.TARGET_VELOCITY:
-            if target_velocity is None:
-                raise ValueError("target_velocity must be provided for TARGET_VELOCITY strategy")
-            return min(solutions, key=lambda s: abs(s.v0 - target_velocity))
-        
-        elif strategy == OptimizationStrategy.CUSTOM:
-            if custom_scorer is None:
-                raise ValueError("custom_scorer must be provided for CUSTOM strategy")
-            return min(solutions, key=custom_scorer)
-        
-        else:
-            raise ValueError(f"Unknown strategy: {strategy}")
-
-
-class PreciseBallisticCalculator(BallisticCalculator3D):
-    """空気抵抗とマグヌス効果を考慮した精密計算"""
-    
-    def __init__(self, g=9.81, air_density=1.225, drag_coef=0.45, 
-                 ball_radius=0.02, ball_mass=0.0027, magnus_coef=0.25):
-        """
-        Args:
-            g: 重力加速度 (m/s^2)
-            air_density: 空気密度 (kg/m^3)
-            drag_coef: 抗力係数
-            ball_radius: ボール半径 (m) - 卓球は40mm直径
-            ball_mass: ボール質量 (kg) - 卓球は2.7g
-            magnus_coef: マグヌス効果の係数
-        """
-        super().__init__(g)
-        self.rho = air_density
-        self.Cd = drag_coef
-        self.radius = ball_radius
-        self.mass = ball_mass
-        self.A = np.pi * ball_radius**2  # 断面積
-        self.Cm = magnus_coef
-        
-    def simulate_with_drag(self, v0: float, azimuth: float, elevation: float, 
-                          spin_rate: float = 0, spin_axis: Tuple[float, float, float] = (0, 0, 1),
-                          start_z: float = 0.0, dt: float = 0.001, max_time: float = 10.0) -> List[Point3D]:
-        """
-        空気抵抗とマグヌス効果を考慮した軌道計算（RK4法）
-        
-        Args:
-            v0: 初速度 (m/s)
-            azimuth: 方位角 (rad)
-            elevation: 仰角 (rad)
-            spin_rate: スピン速度 (rad/s)
-            spin_axis: スピン軸の方向ベクトル (正規化不要)
-            start_z: 初期高さ (m)
-            dt: 時間刻み (s)
-            max_time: 最大計算時間 (s)
-        
-        Returns:
-            軌道点のリスト
-        """
-        # 初期速度ベクトル
-        vx = v0 * np.cos(elevation) * np.cos(azimuth)
-        vy = v0 * np.cos(elevation) * np.sin(azimuth)
-        vz = v0 * np.sin(elevation)
-        
-        # 初期位置
-        x, y, z = 0.0, 0.0, start_z
-        
-        # スピン軸の正規化
-        spin_norm = np.linalg.norm(spin_axis)
-        if spin_norm > 0:
-            omega_vec = np.array(spin_axis) * spin_rate / spin_norm
-        else:
-            omega_vec = np.array([0.0, 0.0, 0.0])
-        
-        trajectory = []
-        t = 0.0
-        
-        def acceleration(vel):
-            """加速度を計算"""
-            v_mag = np.linalg.norm(vel)
-            
-            if v_mag < 1e-6:
-                return np.array([0.0, 0.0, -self.g])
-            
-            # 空気抵抗
-            drag_force = -0.5 * self.rho * self.Cd * self.A * v_mag * v_mag
-            a_drag = drag_force * vel / (self.mass * v_mag)
-            
-            # マグヌス力 F = Cm * rho * A * r * omega × v
-            magnus_force = self.Cm * self.rho * self.A * self.radius * np.cross(omega_vec, vel)
-            a_magnus = magnus_force / self.mass
-            
-            # 重力
-            a_gravity = np.array([0.0, 0.0, -self.g])
-            
-            return a_drag + a_magnus + a_gravity
-        
-        while z >= 0 and t < max_time:
-            trajectory.append(Point3D(x, y, z))
-            
-            # RK4法による数値積分
-            pos = np.array([x, y, z])
-            vel = np.array([vx, vy, vz])
-            
-            k1_v = acceleration(vel)
-            k1_p = vel
-            
-            k2_v = acceleration(vel + 0.5 * dt * k1_v)
-            k2_p = vel + 0.5 * dt * k1_v
-            
-            k3_v = acceleration(vel + 0.5 * dt * k2_v)
-            k3_p = vel + 0.5 * dt * k2_v
-            
-            k4_v = acceleration(vel + dt * k3_v)
-            k4_p = vel + dt * k3_v
-            
-            vel += dt * (k1_v + 2*k2_v + 2*k3_v + k4_v) / 6
-            pos += dt * (k1_p + 2*k2_p + 2*k3_p + k4_p) / 6
-            
-            vx, vy, vz = vel
-            x, y, z = pos
-            t += dt
-        
-        return trajectory
-    
-    def optimize_parameters(self, target: Point3D, start_z: float, 
-                          initial_guess: Tuple[float, float, float],
-                          spin_rate: float = 0,
-                          spin_axis: Tuple[float, float, float] = (0, 0, 1),
-                          method: str = 'Nelder-Mead',
-                          tolerance: float = 1e-4) -> dict:
-        """
-        シンプルモデルの解を初期値として最適化
-        
-        Args:
-            target: 目標位置
-            start_z: 開始高さ
-            initial_guess: 初期推定値 (v0, azimuth_rad, elevation_rad)
-            spin_rate: スピン速度 (rad/s)
-            spin_axis: スピン軸
-            method: 最適化手法 ('Nelder-Mead', 'Powell', 'BFGS' など)
-            tolerance: 収束判定の閾値
-        
-        Returns:
-            最適化結果の辞書
-        """
-        def objective(params):
-            v0, az, el = params
-            
-            # パラメータの妥当性チェック
-            if v0 <= 0:
-                return 1e10
-            if el < -np.pi/2 or el > np.pi/2:
-                return 1e10
-
-            trajectory = self.simulate_with_drag(v0, az, el, spin_rate, rotate_spin_axis(spin_axis, az, el), start_z=start_z)
-
-            if not trajectory or len(trajectory) < 2:
-                return 1e10
-            
-            # 最終点と目標点の距離
-            final = trajectory[-1]
-            error = np.sqrt(
-                (final.x - target.x)**2 + 
-                (final.y - target.y)**2 + 
-                (final.z - target.z)**2
-            )
-            return error
-        
-        result = minimize(
-            objective,
-            initial_guess,
-            method=method,
-            options={'maxiter': 1000, 'xatol': tolerance, 'fatol': tolerance}
+        omega_local = np.array(omega_local)
+        omega = (
+            v_dir * omega_local[0] +
+            right * omega_local[1] +
+            up * omega_local[2]
         )
-        
-        if result.success:
-            v0_opt, az_opt, el_opt = result.x
-            final_trajectory = self.simulate_with_drag(v0_opt, az_opt, el_opt, 
-                                                       spin_rate, rotate_spin_axis(spin_axis, az_opt, el_opt), start_z=start_z)
+
+        return omega
+
+    omega = local_to_global(omega_local)
+    # 初期速度ベクトル（球面座標 -> カート座標）
+    vx = v0 * np.cos(theta) * np.sin(phi)
+    vy = v0 * np.cos(theta) * np.cos(phi)
+    vz = v0 * np.sin(theta)
+
+    vel = np.array([vx, vy, vz], dtype=float)
+    pos = np.array([robo_pos[0], robo_pos[1], robo_pos[2]], dtype=float)
+    omega = np.array(omega, dtype=float)  # 回転ベクトル
+
+    xs, ys, zs = [pos[0]], [pos[1]], [pos[2]]
+    bounces = []
+    t = 0.0
+
+    # 安全上限ステップ数
+    max_steps = int(max_time / dt)
+
+    for _ in range(max_steps):
+        speed = np.linalg.norm(vel)
+        if speed < 1e-8:
+            v_hat = np.zeros(3)
         else:
-            final_trajectory = []
-        
-        return {
-            'success': result.success,
-            'v0': result.x[0],
-            'azimuth_rad': result.x[1],
-            'elevation_rad': result.x[2],
-            'azimuth_deg': result.x[1] * 180 / np.pi,
-            'elevation_deg': result.x[2] * 180 / np.pi,
-            'error': result.fun,
-            'trajectory': final_trajectory,
-            'iterations': result.nit if hasattr(result, 'nit') else None,
-            'message': result.message
-        }
+            v_hat = vel / speed
 
-def rotate_spin_axis(spin_axis_local, azimuth, elevation):
-    # 回転行列を使ってローカルベクトルをワールド座標に変換する
-    ca, sa = np.cos(azimuth), np.sin(azimuth)
-    ce, se = np.cos(elevation), np.sin(elevation)
+        F_drag = -0.5 * RHO_AIR * C_d * A_CROSS * speed**2 * v_hat
 
-    # 射出方向の座標系
-    forward = np.array([ce*ca, ce*sa, se])   # 射出方向 (z local)
-    right   = np.array([-sa, ca, 0])         # 右方向 (x local)
-    up      = np.cross(forward, right)       # 上方向 (y local)
 
-    local_vec = spin_axis_local[0] * right + \
-                spin_axis_local[1] * up + \
-                spin_axis_local[2] * forward
-    return local_vec / np.linalg.norm(local_vec)
-
-def find_precise_solution(target: Point3D, start_z: float, velocities: List[float],
-                         strategy: OptimizationStrategy = OptimizationStrategy.MIN_ELEVATION,
-                         target_elevation: Optional[float] = None,
-                         target_velocity: Optional[float] = None,
-                         custom_scorer: Optional[Callable[[Solution], float]] = None,
-                         spin_rate: float = 0,
-                         spin_axis: Tuple[float, float, float] = (0, 0, 1),
-                         verbose: bool = True,
-                         allow_neg_elev: bool = True) -> Optional[dict]:
-    """
-    シンプルモデルで初期解を求め、精密モデルで最適化
-    
-    Args:
-        target: 目標位置
-        start_z: 開始高さ
-        velocities: テストする速度のリスト
-        strategy: 初期解選択戦略
-        target_elevation: 目標仰角（rad）
-        target_velocity: 目標速度（m/s）
-        custom_scorer: カスタム評価関数
-        spin_rate: スピン速度 (rad/s)
-        spin_axis: スピン軸
-        verbose: 詳細出力
-    
-    Returns:
-        精密解の辞書、または None
-    """
-    # Step 1: シンプルモデルで初期解を取得
-    simple_calc = BallisticCalculator3D()
-    simple_solutions = simple_calc.find_solutions(velocities, target, start_z)
-    
-    if not simple_solutions:
-        if verbose:
-            print("❌ シンプルモデルでも解が見つかりません")
-        return None
-    
-    if verbose:
-        print(f"\n{'='*70}")
-        print(f"📊 シンプルモデル: {len(simple_solutions)}個の解が見つかりました")
-        print(f"{'='*70}")
-    
-    # Step 2: 戦略に基づいて最適な初期解を選択
-    best_simple = simple_calc.select_best_solution(
-        simple_solutions,
-        strategy=strategy,
-        target_elevation=target_elevation,
-        target_velocity=target_velocity,
-        custom_scorer=custom_scorer
-    )
-    
-    if verbose:
-        print(f"\n🎯 選択された初期解 (戦略: {strategy.value}):")
-        print(f"  速度:   {best_simple.v0:.2f} m/s")
-        print(f"  方位角: {best_simple.azimuth_deg:.2f}°")
-        print(f"  仰角:   {best_simple.elevation_deg:.2f}°")
-        print(f"  合計角度: {np.rad2deg(best_simple.total_angle):.2f}°")
-    
-    # Step 3: 精密モデルで最適化
-    if verbose:
-        print(f"\n{'='*70}")
-        print("🔬 精密モデルで最適化中...")
-        print(f"{'='*70}")
-    
-    precise_calc = PreciseBallisticCalculator()
-    initial_guess = [
-        best_simple.v0,
-        best_simple.azimuth,
-        best_simple.elevation
-    ]
-    
-    result = precise_calc.optimize_parameters(
-        target, start_z, initial_guess,
-        spin_rate=spin_rate,
-        spin_axis=spin_axis
-    )
-    
-    if verbose:
-        print(f"\n{'='*70}")
-        if result['success']:
-            print("✅ 最適化成功!")
-            print(f"{'='*70}")
-            print(f"\n📈 精密解:")
-            print(f"  速度:   {result['v0']:.2f} m/s (初期値から {result['v0']-best_simple.v0:+.2f} m/s)")
-            print(f"  方位角: {result['azimuth_deg']:.2f}° (初期値から {result['azimuth_deg']-best_simple.azimuth_deg:+.2f}°)")
-            print(f"  仰角:   {result['elevation_deg']:.2f}° (初期値から {result['elevation_deg']-best_simple.elevation_deg:+.2f}°)")
-            print(f"  誤差:   {result['error']*1000:.2f} mm")
-            if result['iterations']:
-                print(f"  反復回数: {result['iterations']}")
+        omega_norm = np.linalg.norm(omega)
+        if omega_norm < 1e-9 or speed < 1e-9:
+            F_magnus = np.zeros(3)
         else:
-            print("❌ 最適化失敗")
-            print(f"  メッセージ: {result['message']}")
-        print(f"{'='*70}\n")
-    
-    # 結果に初期解も含める
-    result['initial_solution'] = best_simple
-    
-    return result if result['success'] else None
+            F_magnus = RHO_AIR * C_l * A_CROSS * R_BALL * np.cross(omega, vel)
 
+        # 重力
+        F_grav = np.array([0.0, 0.0, -m * g])
 
-def plot_comparison(simple_solution: Solution, precise_result: dict, 
-                   target: Point3D, start_z: float):
-    """シンプルモデルと精密モデルの比較プロット"""
-    fig = plt.figure(figsize=(18, 6))
-    
-    # 3Dプロット
-    ax1 = fig.add_subplot(131, projection='3d')
-    
-    # シンプルモデルの軌道
-    x_simple = [p.x for p in simple_solution.trajectory]
-    y_simple = [p.y for p in simple_solution.trajectory]
-    z_simple = [p.z for p in simple_solution.trajectory]
-    ax1.plot(x_simple, y_simple, z_simple, 'b-', linewidth=2, label='Simple Model')
-    
-    # 精密モデルの軌道
-    if precise_result['trajectory']:
-        x_precise = [p.x for p in precise_result['trajectory']]
-        y_precise = [p.y for p in precise_result['trajectory']]
-        z_precise = [p.z for p in precise_result['trajectory']]
-        ax1.plot(x_precise, y_precise, z_precise, 'r-', linewidth=2, label='Precise Model')
-    
-    ax1.scatter([0], [0], [start_z], c='green', s=100, label='Start', depthshade=True)
-    ax1.scatter([target.x], [target.y], [target.z], c='orange', s=100, label='Target', depthshade=True)
-    
-    ax1.set_xlabel('X (m)')
-    ax1.set_ylabel('Y (m)')
-    ax1.set_zlabel('Z (m)')
-    ax1.set_title('3D Trajectory Comparison')
-    ax1.legend()
-    
-    # XY平面（上面図）
-    ax2 = fig.add_subplot(132)
-    ax2.plot(x_simple, y_simple, 'b-', linewidth=2, label='Simple Model')
-    if precise_result['trajectory']:
-        ax2.plot(x_precise, y_precise, 'r-', linewidth=2, label='Precise Model')
-    ax2.plot(0, 0, 'go', markersize=10, label='Start')
-    ax2.plot(target.x, target.y, 'o', color='orange', markersize=10, label='Target')
-    ax2.set_xlabel('X (m)')
-    ax2.set_ylabel('Y (m)')
-    ax2.set_title('Top View (XY plane)')
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    ax2.axis('equal')
-    
-    # 側面図
-    ax3 = fig.add_subplot(133)
-    h_simple = [np.sqrt(p.x**2 + p.y**2) for p in simple_solution.trajectory]
-    ax3.plot(h_simple, z_simple, 'b-', linewidth=2, label='Simple Model')
-    if precise_result['trajectory']:
-        h_precise = [np.sqrt(p.x**2 + p.y**2) for p in precise_result['trajectory']]
-        ax3.plot(h_precise, z_precise, 'r-', linewidth=2, label='Precise Model')
-    
-    target_dist = np.sqrt(target.x**2 + target.y**2)
-    ax3.plot(0, start_z, 'go', markersize=10, label='Start')
-    ax3.plot(target_dist, target.z, 'o', color='orange', markersize=10, label='Target')
-    ax3.set_xlabel('Horizontal Distance (m)')
-    ax3.set_ylabel('Height Z (m)')
-    ax3.set_title('Side View')
-    ax3.grid(True, alpha=0.3)
-    ax3.legend()
-    
+        # 合力 -> 加速度
+        F_total = F_drag + F_magnus + F_grav
+        acc = F_total / m
+
+        # 時刻進める（単純な陽的オイラー；必要なら RK4 に拡張）
+        vel = vel + acc * dt
+        pos = pos + vel * dt
+        t += dt
+
+        xs.append(pos[0])
+        ys.append(pos[1])
+        zs.append(pos[2])
+
+        # 台（z=0）との衝突判定
+        if pos[2] <= 0 and vel[2] < 0:
+            # 衝突位置を補間してもう少し正確に当てる（簡易）
+            # 補間係数 alpha: pos_old + alpha * vel_old*dt => z==0 を解く
+            z_prev = zs[-2]
+            v_prev_z = (zs[-1] - zs[-2]) / dt  # 近似
+            if abs(v_prev_z) > 1e-9:
+                alpha = z_prev / (z_prev - pos[2])  # 0<=alpha<=1 なら補間可
+                # 位置補正（より正確にバウンド位置を取る）
+                pos[0] = xs[-2] + (pos[0] - xs[-2]) * alpha
+                pos[1] = ys[-2] + (pos[1] - ys[-2]) * alpha
+                pos[2] = 0.0
+            else:
+                pos[2] = 0.0
+
+            # 法線方向（z）の反発
+            vel_normal = np.array([0.0, 0.0, vel[2]])
+            vel_tangent = vel - vel_normal
+
+            # 反発係数（法線）
+            vel_normal[2] = -vel_normal[2] * restitution
+
+            # 接線方向は摩擦で減衰させる（ラフにモデル化）
+            vel_tangent = vel_tangent * tangential_friction
+
+            # 角速度の変化（簡易）：バウンドで一部減衰
+            omega = omega * spin_restitution
+
+            # 合成して新しい速度
+            vel = vel_tangent + vel_normal
+
+            bounces.append((pos[0], pos[1]))
+            # ここでバウンド回数チェック
+            if len(bounces) >= max_bounce:
+                break
+
+            # 小さな上向き速度が得られた場合は継続（次の飛行）
+        # y方向の距離制限で停止（前方判定）
+        if pos[1] >= y_limit:
+            break
+
+        # ありえない高さで停止（安全）
+        if pos[2] > 5.0:
+            break
+
+        # 時間上限
+        if t >= max_time:
+            break
+
+    return np.array(xs), np.array(ys), np.array(zs), bounces
+
+# evaluate_serve 等は引数の互換性を保つためにほぼ変えずに利用できるようにします。
+def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None, mode_alpha=1.0,
+                   **sim_kwargs):
+    """
+    simulate_trajectory に渡す追加引数は sim_kwargs へ。
+    """
+    x, y, z, bounces = simulate_trajectory(v, theta, phi, robo_pos, **sim_kwargs)
+    BAD_SCORE = -10000.0
+    SAFE_HEIGHT = 0.05  # ネット上を通過するための余裕
+
+    if len(bounces) < 2:
+        return BAD_SCORE
+    for bx, by in bounces[:2]:
+        if bx < -TABLE_WIDTH/2 or bx > TABLE_WIDTH/2:
+            return BAD_SCORE
+        if by < 0 or by > TABLE_LENGTH:
+            return BAD_SCORE
+
+    # ネット位置に最も近い y のインデックス
+    idx_net = np.argmin(np.abs(y - NET_Y))
+    if z[idx_net] < NET_HEIGHT + SAFE_HEIGHT:
+        return BAD_SCORE
+
+    bounce1 = bounces[0]
+    bounce2 = bounces[1]
+
+    err1 = (bounce1[0] - target_my[0])**2 + (bounce1[1] - target_my[1])**2 if target_my else 0.0
+    err2 = (bounce2[0] - target_oppo[0])**2 + (bounce2[1] - target_oppo[1])**2 if target_oppo else 0.0
+
+    score = -(err1 + err2)
+    if mode == "speed":
+        if target is not None:
+            score += -abs(v - target) * mode_alpha
+    if mode == "angle":
+        if target is not None:
+            score += -abs(theta - target) * mode_alpha
+
+    return score
+
+def find_best_theta(v, phi, robo_pos, target_my, target_oppo,
+                              theta_min_deg=-45, theta_max_deg=45, steps=45, mode=None, target=None, **sim_kwargs):
+    best_theta = None
+    best_score = -1e9
+
+    thetas = np.linspace(np.deg2rad(theta_min_deg), np.deg2rad(theta_max_deg), steps)
+
+    for theta in thetas:
+        score = evaluate_serve(v, theta, phi, robo_pos, target_my, target_oppo, mode=mode, target=target, **sim_kwargs)
+        if score > best_score:
+            best_score = score
+            best_theta = theta
+
+    return best_theta, best_score
+
+def find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode="speed", target=10.0, **sim_kwargs):
+    best_v = None
+    best_theta = None
+    best_phi = None
+    best_score = -1e9
+
+    # xy平面上でphiを求める（ターゲットが与えられたとき）
+    if target_oppo is not None:
+        phi = np.arctan2(target_oppo[0] - robo_pos[0], target_oppo[1] - robo_pos[1])
+    elif target_my is not None:
+        phi = np.arctan2(target_my[0] - robo_pos[0], target_my[1] - robo_pos[1])
+    else:
+        phi = 0.0
+
+    for v in v_list:
+        theta, score = find_best_theta(v, phi, robo_pos, target_my, target_oppo,
+                                        mode=mode, target=target, **sim_kwargs)
+        if score > best_score:
+            best_score = score
+            best_theta = theta
+            best_phi = phi
+            best_v = v
+
+    return best_v, best_theta, best_phi, best_score
+
+# ========== 描画関係は変えていません（元コードのまま利用） ==========
+def draw_table_3d(ax):
+    X = [-TABLE_WIDTH/2, TABLE_WIDTH/2, TABLE_WIDTH/2, -TABLE_WIDTH/2, -TABLE_WIDTH/2]
+    Y = [0, 0, TABLE_LENGTH, TABLE_LENGTH, 0]
+    Z = [0, 0, 0, 0, 0]
+    ax.plot(X, Y, Z, color='lightblue', lw=2)
+    ax.plot_surface(
+        np.array([[-TABLE_WIDTH/2, TABLE_WIDTH/2], [-TABLE_WIDTH/2, TABLE_WIDTH/2]]),
+        np.array([[0, 0], [TABLE_LENGTH, TABLE_LENGTH]]),
+        np.zeros((2, 2)),
+        color='lightblue', alpha=0.2
+    )
+    ax.plot([-TABLE_WIDTH/2, TABLE_WIDTH/2], [NET_Y, NET_Y], [NET_HEIGHT, NET_HEIGHT], 'k', lw=2)
+    ax.plot([-TABLE_WIDTH/2, TABLE_WIDTH/2], [NET_Y, NET_Y], [0, 0], 'k', lw=1)
+    ax.plot([0, 0], [NET_Y, NET_Y], [0, NET_HEIGHT], 'k', lw=2)
+
+def plot_3views(trajectories):
+    fig = plt.figure(figsize=(15, 5))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.3, 1, 1])
+
+    ax3d = fig.add_subplot(gs[0, 0], projection='3d')
+    draw_table_3d(ax3d)
+    for idx, tr in enumerate(trajectories, 1):
+        ax3d.plot(tr["x"], tr["y"], tr["z"], label=f"traj {idx}")
+        for j, (xb, yb) in enumerate(tr["bounces"]):
+            ax3d.scatter(xb, yb, 0, color='r' if j == 0 else 'g', s=40)
+    ax3d.set_xlabel("x [m] (Left–Right)")
+    ax3d.set_ylabel("y [m] (Front–Back)")
+    ax3d.set_zlabel("z [m] (Height)")
+    ax3d.set_xlim(-TABLE_WIDTH/2, TABLE_WIDTH/2)
+    ax3d.set_ylim(0, TABLE_LENGTH)
+    ax3d.set_zlim(0, 1.5)
+    ax3d.view_init(elev=20, azim=-60)
+    ax3d.set_title("3D View")
+
+    ax_top = fig.add_subplot(gs[0, 1])
+    ax_top.add_patch(plt.Rectangle((-TABLE_WIDTH/2, 0), TABLE_WIDTH, TABLE_LENGTH,
+                                   color='lightblue', alpha=0.3))
+    ax_top.axhline(NET_Y, color='k', linestyle='--', label="Net")
+    for idx, tr in enumerate(trajectories, 1):
+        ax_top.plot(tr["x"], tr["y"], label=f"traj {idx}")
+        for j, (xb, yb) in enumerate(tr["bounces"]):
+            ax_top.plot(xb, yb, 'ro' if j == 0 else 'go')
+    ax_top.set_xlabel("x [m] (Left–Right)")
+    ax_top.set_ylabel("y [m] (Front–Back)")
+    ax_top.set_xlim(-TABLE_WIDTH/2, TABLE_WIDTH/2)
+    ax_top.set_ylim(0, TABLE_LENGTH)
+    ax_top.set_title("Top View (x–y)")
+    ax_top.legend()
+
+    ax_side = fig.add_subplot(gs[0, 2])
+    ax_side.add_patch(plt.Rectangle((0, 0), TABLE_LENGTH, 0.02,
+                                    color='lightblue', alpha=0.4))
+    ax_side.axvline(NET_Y, color='k', linestyle='--', label="Net")
+    ax_side.axhline(NET_HEIGHT, color='gray', linestyle=':')
+    for idx, tr in enumerate(trajectories, 1):
+        ax_side.plot(tr["y"], tr["z"], label=f"traj {idx}")
+        for j, (xb, yb) in enumerate(tr["bounces"]):
+            ax_side.plot(yb, 0, 'ro' if j == 0 else 'go')
+    ax_side.set_xlabel("y [m] (Front–Back)")
+    ax_side.set_ylabel("z [m] (Height)")
+    ax_side.set_xlim(0, TABLE_LENGTH)
+    ax_side.set_ylim(0, 1.5)
+    ax_side.set_title("Side View (y–z)")
+    ax_side.legend()
+
     plt.tight_layout()
     plt.show()
 
-
 def main():
-    print("🏓 卓球ロボット - 弾道計算システム")
-    print("="*70)
-    
-    # パラメータ設定
-    start_z = 0.3
-    target = Point3D(x=2.74/2, y=1.525, z=0)  # 卓球台の反対側中央くらい
-    #velocities = [5,10,15]
-    velocities = list(range(1, 21))
-    
-    print(f"\n📍 設定:")
-    print(f"  ロボット位置: X=0m, Y=0m, Z={start_z}m")
-    print(f"  目標位置: X={target.x}m, Y={target.y}m, Z={target.z}m")
-    print(f"  水平距離: {np.sqrt(target.x**2 + target.y**2):.3f}m")
-    print(f"  テスト速度: {velocities}")
-    
-    # 例1: 最小仰角を優先
-    print("\n" + "="*70)
-    print("例1: 最小仰角を優先")
-    print("="*70)
-    result1 = find_precise_solution(
-        target, start_z, velocities,
-        strategy=OptimizationStrategy.MIN_ELEVATION,
-        spin_rate=500,
-        spin_axis=(0, 0, 1)
-        )
+    robo_pos = (0.2, 0, 0.27) # ロボットの位置
+    target_my = None     # 1バウンド目（自分側）
+    target_oppo = (0.5, 2.0)  # 2バウンド目（相手側）
+    v_list = np.arange(0.0, 6.0, 1.0)
+    mode = "speed"
+    target_speed = 3.0  # 目標速度 [m/s]
 
-    if result1:
-        plot_comparison(result1['initial_solution'], result1, target, start_z)
-    
-    # 例2: 目標仰角に近づける
-    print("\n" + "="*70)
-    print("例2: 目標仰角30度に近づける")
-    print("="*70)
-    result2 = find_precise_solution(
-        target, start_z, velocities,
-        strategy=OptimizationStrategy.TARGET_ANGLE,
-        target_elevation=np.deg2rad(40.0),  # rad
-        spin_rate=500,
-        spin_axis=(1, 0, 10)
-    )
-    
-    if result2:
-        plot_comparison(result2['initial_solution'], result2, target, start_z)
-    
-    # 例3: カスタム評価関数（速度を重視しつつ角度も考慮）
-    print("\n" + "="*70)
-    print("例3: 速度が速く、かつ角度が小さい解を優先")
-    print("="*70)
-    
-    def custom_scorer(sol: Solution) -> float:
-        # 速度が速いほど良い（負の値）、角度が小さいほど良い
-        # 重み付けで調整
-        velocity_score = -sol.v0 * 0.1  # 速度10m/sで-1.0
-        angle_score = sol.elevation * 1.0  # 角度そのまま
-        return velocity_score + angle_score
-    
-    result3 = find_precise_solution(
-        target, start_z, velocities,
-        strategy=OptimizationStrategy.CUSTOM,
-        custom_scorer=custom_scorer
-    )
-    
-    if result3:
-        plot_comparison(result3['initial_solution'], result3, target, start_z)
+    # 例: 少しトップスピン（x軸周りの負の回転）、少し側回転を混ぜた回転ベクトル
+    # omega = (wx, wy, wz) [rad/s]。w ~ 50-200 rad/s は卓球ボールであり得る範囲（試験的に）
+    sim_kwargs = {
+        "omega_local": (0.0, 80.0, -200.0),  # (wx, wy, wz) - 調整してみてください
+        "C_d": 0.5,
+        "C_l": 0.18,
+        "m": M_BALL,
+        "restitution": 0.9,
+        "spin_restitution": 0.85,
+        "tangential_friction": 0.9,
+        "dt": 0.005,
+        "max_time": 2.0
+    }
 
+    start = time.time()
+    best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed, **sim_kwargs)
+    end = time.time()
+    print("探索時間:", end - start, "秒")
+    print("最適速度:", best_v, "m/s")
+    print("最適仰角:", np.rad2deg(best_theta), "度")
+    print("最適横回転角:", np.rad2deg(best_phi), "度")
+    print("評価スコア:", score)
+    x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos, **sim_kwargs)
+    plot_3views([{"x": x, "y": y, "z": z, "bounces": b}])
 
 if __name__ == "__main__":
     main()
