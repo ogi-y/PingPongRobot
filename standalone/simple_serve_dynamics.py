@@ -11,10 +11,6 @@ NET_Y = TABLE_LENGTH / 2
 NET_HEIGHT = 0.1525
 
 def find_bounce_time(z0, vz, restitution_power=0):
-    """
-    z = z0 + vz*t - 0.5*g*t^2 = 0 となる時刻を解析的に求める
-    restitution_power: バウンド回数（反発係数の累乗）
-    """
     a = -0.5 * g
     b = vz * (restitution_power ** restitution_power) if restitution_power > 0 else vz
     c = z0
@@ -29,11 +25,7 @@ def find_bounce_time(z0, vz, restitution_power=0):
     valid_times = [t for t in [t1, t2] if t > 1e-9]
     return min(valid_times) if valid_times else None
 
-def simulate_trajectory_analytical(v, theta, phi, robo_pos, restitution=0.9,
-                                   max_bounce=3, y_limit=TABLE_LENGTH*2):
-    """
-    解析解を使った高速バウンドシミュレーション
-    """
+def simulate_trajectory_analytical(v, theta, phi, robo_pos, restitution=0.9,max_bounce=3, y_limit=TABLE_LENGTH*2):
     vx0 = v * np.cos(theta) * np.sin(phi)
     vy0 = v * np.cos(theta) * np.cos(phi)
     vz0 = v * np.sin(theta)
@@ -113,8 +105,7 @@ def evaluate_serve(v, theta, phi, robo_pos, target_my=None, target_oppo=None, mo
 
     return score
 
-def find_best_theta(v, phi, robo_pos, target_my, target_oppo,
-                              theta_min_deg=-60, theta_max_deg=60, steps=120, mode=None, target=None):
+def find_best_theta(v, phi, robo_pos, target_my, target_oppo, theta_min_deg=-60, theta_max_deg=60, steps=120, mode=None, target=None):
     best_theta = None
     best_score = -1e9
 
