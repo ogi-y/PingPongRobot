@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import time
 
 g = 9.80665  # [m/s^2]
 
@@ -12,7 +13,7 @@ NET_HEIGHT = 0.1525
 Z0 = 0.2  # 打出し高さ
 
 # ========== 軌道シミュレーション ==========
-def simulate_trajectory(v, theta, phi, z0=Z0, restitution=0.9,
+def simulate_trajectory(v, theta, phi, robo_pos, z0=Z0, restitution=0.9,
                         max_bounce=3, y_limit=TABLE_LENGTH*2, dt=0.001):
     """
     バウンドを考慮したシンプル放物運動シミュレーション
@@ -31,7 +32,7 @@ def simulate_trajectory(v, theta, phi, z0=Z0, restitution=0.9,
     vz = v * np.sin(theta)
 
     # 現在位置・速度
-    x, y, z = 0.0, 0.0, z0
+    x, y, z = robo_pos[0], robo_pos[1], z0
     t = 0.0
 
     xs, ys, zs = [x], [y], [z]
@@ -68,25 +69,28 @@ def simulate_trajectory(v, theta, phi, z0=Z0, restitution=0.9,
     return np.array(xs), np.array(ys), np.array(zs), bounces
 
 
-def evaluate_serve(v, theta, phi, target_my = None, target_oppo = None):
+def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None, mode_alpha=1.0):
     """
     サーブの評価関数
 
     target_my: 自分側の目標座標 (x, y)
     target_oppo: 相手側の目標座標 (x, y)
     """
-    x, y, z, bounces = simulate_trajectory(v, theta, phi)
+    x, y, z, bounces = simulate_trajectory(v, theta, phi, robo_pos)
+    BAD_SCORE = -10000.0
+    SAFE_HEIGHT = 0.05  # ネット上を通過するための余裕
 
     if len(bounces) < 2:
-        return -100.0
+        return BAD_SCORE
+    for bx, by in bounces[:2]:
+        if bx < -TABLE_WIDTH/2 or bx > TABLE_WIDTH/2:
+            return BAD_SCORE
+        if by < 0 or by > TABLE_LENGTH:
+            return BAD_SCORE
 
-    mask = (y > NET_Y - 0.05) & (y < NET_Y + 0.05)
-    if np.any(mask):
-        min_z = np.min(z[mask])
-    else:
-        min_z = np.min(z)
-    if min_z < NET_HEIGHT:
-        return -100.0
+    idx_net = np.argmin(np.abs(y - NET_Y))
+    if z[idx_net] < NET_HEIGHT + SAFE_HEIGHT:
+        return BAD_SCORE
     
     bounce1 = bounces[0]
     bounce2 = bounces[1]
@@ -94,7 +98,59 @@ def evaluate_serve(v, theta, phi, target_my = None, target_oppo = None):
     err1 = (bounce1[0] - target_my[0])**2 + (bounce1[1] - target_my[1])**2 if target_my else 0.0
     err2 = (bounce2[0] - target_oppo[0])**2 + (bounce2[1] - target_oppo[1])**2 if target_oppo else 0.0
 
-    return -(err1 + err2)
+    score = -(err1 + err2)
+    if mode == "speed":
+        if target is not None:
+            score += -abs(v - target) * mode_alpha
+    if mode == "angle":
+        if target is not None:
+            score += -abs(theta - target) * mode_alpha
+
+    return score
+
+def find_best_theta(v, phi, robo_pos, target_my, target_oppo,
+                              theta_min_deg=-45, theta_max_deg=45, steps=90, mode=None, target=None):
+    """
+    速度 v・左右角 phi・狙い座標を固定して
+    最適な仰角 theta を探索する
+    """
+    best_theta = None
+    best_score = -1e9
+
+    thetas = np.linspace(np.deg2rad(theta_min_deg), np.deg2rad(theta_max_deg), steps)
+
+    for theta in thetas:
+        score = evaluate_serve(v, theta, phi, robo_pos, target_my, target_oppo, mode=mode, target=target)
+        if score > best_score:
+            best_score = score
+            best_theta = theta
+
+    return best_theta, best_score
+
+def find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode="speed", target=10.0):
+    best_v = None
+    best_theta = None
+    best_phi = None
+    best_score = -1e9
+
+    #xy平面上でphiを求める
+    if target_oppo is not None:
+        phi = np.arctan2(target_oppo[0] - robo_pos[0], target_oppo[1] - robo_pos[1])
+    elif target_my is not None:
+        phi = np.arctan2(target_my[0] - robo_pos[0], target_my[1] - robo_pos[1])
+    else:
+        phi = 0.0
+
+    for v in v_list:
+        theta, score = find_best_theta(v, phi, robo_pos, target_my, target_oppo,
+                                        mode=mode, target=target)
+        if score > best_score:
+            best_score = score
+            best_theta = theta
+            best_phi = phi
+            best_v = v
+
+    return best_v, best_theta, best_phi, best_score
 
 # ========== 卓球台を描画 (3D) ==========
 def draw_table_3d(ax):
@@ -185,4 +241,22 @@ def demo_three_views():
                              "x": x, "y": y, "z": z, "bounces": b})
     plot_3views(trajectories)
 
-demo_three_views()
+#demo_three_views()
+
+robo_pos = (0.5, 0) # ロボットの位置
+target_my = None     # 1バウンド目（自分側）
+target_oppo = (-0.5, 2.0)  # 2バウンド目（相手側）
+v_list = np.arange(0.1, 5.0, 0.1)
+mode = "speed"
+target_speed = 3.0  # 目標速度 [m/s]
+
+start = time.time()
+best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed)
+end = time.time()
+print("探索時間:", end - start, "秒")
+print("最適速度:", best_v, "m/s")
+print("最適仰角:", np.rad2deg(best_theta), "度")
+print("最適横回転角:", np.rad2deg(best_phi), "度")
+print("評価スコア:", score)
+x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos)
+plot_3views([{"x": x, "y": y, "z": z, "bounces": b}])
