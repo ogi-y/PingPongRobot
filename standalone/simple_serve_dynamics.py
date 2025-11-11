@@ -215,9 +215,9 @@ def main():
     robo_pos = (0.5, 0, 0.27)
     target_my = None
     target_oppo = (0.5, 2.5)
-    v_list = np.arange(2.0, 4.0, 0.1)
+    v_list = np.arange(1.0, 5.0, 0.1)
     mode = "speed"
-    target_speed = 10
+    target_speed = 0
 
     start = time.time()
     best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed)
