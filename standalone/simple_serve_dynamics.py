@@ -10,10 +10,9 @@ TABLE_LENGTH = 2.74   # y方向（前後）
 TABLE_WIDTH = 1.525   # x方向（左右）
 NET_Y = TABLE_LENGTH / 2
 NET_HEIGHT = 0.1525
-Z0 = 0.2  # 打出し高さ
 
 # ========== 軌道シミュレーション ==========
-def simulate_trajectory(v, theta, phi, robo_pos, z0=Z0, restitution=0.9,
+def simulate_trajectory(v, theta, phi, robo_pos, restitution=0.9,
                         max_bounce=3, y_limit=TABLE_LENGTH*2, dt=0.001):
     """
     バウンドを考慮したシンプル放物運動シミュレーション
@@ -32,7 +31,7 @@ def simulate_trajectory(v, theta, phi, robo_pos, z0=Z0, restitution=0.9,
     vz = v * np.sin(theta)
 
     # 現在位置・速度
-    x, y, z = robo_pos[0], robo_pos[1], z0
+    x, y, z = robo_pos[0], robo_pos[1], robo_pos[2]
     t = 0.0
 
     xs, ys, zs = [x], [y], [z]
@@ -230,33 +229,26 @@ def plot_3views(trajectories):
     plt.show()
 
 
-# ========== デモ ==========
-def demo_three_views():
-    phi_center = np.deg2rad(5)  # わずかに右方向
-    trajectories = []
-    for (v, theta_deg) in [(2.0, 10), (3.0, 14), (4.0, 18)]:
-        theta = np.deg2rad(theta_deg)
-        x, y, z, b = simulate_trajectory(v, theta, phi_center)
-        trajectories.append({"v": v, "theta": theta, "phi": phi_center,
-                             "x": x, "y": y, "z": z, "bounces": b})
-    plot_3views(trajectories)
 
-#demo_three_views()
+def main():
 
-robo_pos = (0.5, 0) # ロボットの位置
-target_my = None     # 1バウンド目（自分側）
-target_oppo = (-0.5, 2.0)  # 2バウンド目（相手側）
-v_list = np.arange(0.1, 5.0, 0.1)
-mode = "speed"
-target_speed = 3.0  # 目標速度 [m/s]
+    robo_pos = (0.5, 0, 0.2) # ロボットの位置
+    target_my = None     # 1バウンド目（自分側）
+    target_oppo = (-0.5, 2.0)  # 2バウンド目（相手側）
+    v_list = np.arange(0.1, 5.0, 0.1)
+    mode = "speed"
+    target_speed = 3.0  # 目標速度 [m/s]
 
-start = time.time()
-best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed)
-end = time.time()
-print("探索時間:", end - start, "秒")
-print("最適速度:", best_v, "m/s")
-print("最適仰角:", np.rad2deg(best_theta), "度")
-print("最適横回転角:", np.rad2deg(best_phi), "度")
-print("評価スコア:", score)
-x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos)
-plot_3views([{"x": x, "y": y, "z": z, "bounces": b}])
+    start = time.time()
+    best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed)
+    end = time.time()
+    print("探索時間:", end - start, "秒")
+    print("最適速度:", best_v, "m/s")
+    print("最適仰角:", np.rad2deg(best_theta), "度")
+    print("最適横回転角:", np.rad2deg(best_phi), "度")
+    print("評価スコア:", score)
+    x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos)
+    plot_3views([{"x": x, "y": y, "z": z, "bounces": b}])
+
+if __name__ == "__main__":
+    main()
