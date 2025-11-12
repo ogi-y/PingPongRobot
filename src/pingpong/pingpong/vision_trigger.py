@@ -5,7 +5,7 @@ import time
 
 class VisionTriggerTest(Node):
     def __init__(self):
-        super().__init__('vision_trigger_test')
+        super().__init__('vision_trigger')
         self.pub_age = self.create_publisher(Bool, '/age_trigger', 10)
         self.pub_body = self.create_publisher(Bool, '/body_trigger', 10)
         self.pub_serve = self.create_publisher(Bool, '/serve_trigger', 10)

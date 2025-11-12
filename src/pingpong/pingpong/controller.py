@@ -11,7 +11,7 @@ class ServeController(Node):
         self.player_pos = None
         self.level = 0
         self.triggered = False
-        self.robo_pos = "center"
+        self.robo_pos = 0.5
 
         self.create_subscription(String, '/age', self.age_callback, 10)
         # /age topic JSON example:
@@ -24,9 +24,9 @@ class ServeController(Node):
         self.timer = self.create_timer(0.1, self.decide_serve)
 
         self.robo_pos_choices = {
-                "left": ["left", "center"],
-                "center": ["left", "right", "center"],
-                "right": ["right", "center"],
+                0: [0, 1],
+                1: [0, 2, 1],
+                2: [2, 1],
             }
 
     def age_callback(self, msg):
@@ -71,28 +71,28 @@ class ServeController(Node):
         if self.player_pos is not None:
             player_pos = self.player_pos
         else:
-            player_pos = random.choice(["left", "right", "center"])
+            player_pos = random.choice([0, 1, 2])
             self.get_logger().info("Player position not available, random position selected")
 
         if self.level == 0:
             speed, spin = 0.3, 0.2
             course_x = player_pos
-            course_y = "middle"
-            spin_dir = "top"
-            serve_pos = "center"
+            course_y = 1
+            spin_dir = 0
+            serve_pos = 0
         elif self.level == 1:
             speed, spin = 0.6, 0.5
-            course_x = random.choice(["left", "right", "center"])
-            course_y = random.choice(["middle", "back"])
-            spin_dir = random.choice(["top", "back", "left", "right"])
+            course_x = random.choice([0.2, 0.5, 0.8]) # left, right, center
+            course_y = random.choice([0.5, 0.8]) # middle, back
+            spin_dir = random.choice([0, 180, 270, 90]) # top, back, left, right
             serve_pos = random.choice(self.robo_pos_choices[self.robo_pos])
         else:
             speed, spin = 0.9, 0.8
-            course_x_choices = [pos for pos in ["left", "right", "center"] if pos != player_pos]
+            course_x_choices = [pos for pos in [0.2, 0.5, 0.8] if pos != player_pos]
             course_x = random.choice(course_x_choices)
-            course_y = random.choice(["front", "middle", "back"])
-            spin_dir = random.choice(["top", "back", "left", "right"])
-            serve_pos = random.choice(["left", "right", "center"])
+            course_y = random.choice([0.3, 0.5, 0.8]) # front, middle, back
+            spin_dir = random.choice([0, 180, 270, 90]) # top, back, left, right
+            serve_pos = random.choice([0, 1, 2]) # left, right, center
 
         speed += random.uniform(-0.05, 0.05)
         spin += random.uniform(-0.05, 0.05)

@@ -84,12 +84,11 @@ class VisionProcessor(Node):
 
 
         if player_x < w * left_threshold:
-            position = "left"
+            position = 0 # left
         elif player_x > w * right_threshold:
-            position = "right"
+            position = 2 # right
         else:
-            position = "center"
-
+            position = 1 # center
         msg_data = {"pos": position, "x": int(player_x), "y": int(player_y)}
         self.pub_player_pos.publish(String(data=json.dumps(msg_data)))
 

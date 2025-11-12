@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'pingpong'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools',
                       'opencv-python',
@@ -28,8 +31,9 @@ setup(
             'image_publisher = pingpong.image_publisher:main',
             'age_estimation = pingpong.age_estimation:main',
             'vision_processor = pingpong.vision_processor:main',
-            'vision_trigger = pingpong.vision_trigger:main',
+            'trigger = pingpong.vision_trigger:main',
             'controller = pingpong.controller:main',
+            'serve_calculator = pingpong.serve_calculator:main',
             'sample_image_subscriber = pingpong.sample_image_subscriber:main',
         ],
     },
