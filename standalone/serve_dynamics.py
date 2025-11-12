@@ -5,13 +5,12 @@ import time
 
 g = 9.80665  # [m/s^2]
 
-# 卓球台パラメータ
+# 物理パラメータ
 TABLE_LENGTH = 2.74   # y方向（前後）
 TABLE_WIDTH = 1.525   # x方向（左右）
 NET_Y = TABLE_LENGTH / 2
 NET_HEIGHT = 0.1525
 
-# ボール物性（標準値：卓球ボール）
 R_BALL = 0.02           # 半径 [m]（40mm球）
 A_CROSS = np.pi * R_BALL**2  # 正面投影面積 [m^2]
 M_BALL = 0.0027         # 質量 [kg]（約2.7 g）
@@ -31,73 +30,55 @@ def spin_ang_to_local_omega(spin_rate, spin_ang):
 
     return (wx, wy, wz)
 
-# ========== 軌道シミュレーション（ドラッグ＋マグヌス） ==========
+def local_to_global(omega_local, theta, phi):
+    v_dir = np.array([
+        np.cos(theta) * np.sin(phi),
+        np.cos(theta) * np.cos(phi),
+        np.sin(theta)
+    ])
+    v_dir /= np.linalg.norm(v_dir)
+
+    world_up = np.array([0, 0, 1])
+    right = np.cross(world_up, v_dir)
+    right_norm = np.linalg.norm(right)
+    if right_norm < 1e-9:
+        right = np.array([1, 0, 0])
+    else:
+        right /= right_norm
+    up = np.cross(v_dir, right)
+
+    omega_local_arr = np.array(omega_local)
+    omega = (
+        v_dir * omega_local_arr[0] +
+        right * omega_local_arr[1] +
+        up * omega_local_arr[2]
+    )
+
+    return omega
+
 def simulate_trajectory(v0, theta, phi, robo_pos,
                         omega_local=(0.0, 0.0, 0.0),
-                        C_d=0.5, C_l=0.2,
+                        C_d=0.5, C_l=0.2, # 抗力・揚力係数
                         m=M_BALL,
-                        restitution=0.9,
-                        spin_restitution=0.9,
-                        tangential_friction=0.9,
+                        restitution=0.9, # 法線反発係数
+                        spin_restitution=0.9, # 回転保持率
+                        tangential_friction=0.9, # 接線摩擦係数
                         max_bounce=3,
                         y_limit=TABLE_LENGTH*2,
                         dt=0.001,
-                        max_time=10.0):
-    """
-    空気抵抗とマグヌス効果を含む数値シミュレーション（ニュートン運動方程式に基づく）
-    - v0: 初速の大きさ [m/s]
-    - theta: 仰角 [rad]
-    - phi: 水平角（右が正） [rad]
-    - robo_pos: 初期位置 (x, y, z)
-    - omega: 回転ベクトル (wx, wy, wz) [rad/s] （右手系）
-    - C_d: 抗力係数（球で ~0.4-0.6 の範囲）
-    - C_l: 揚力（マグヌス）係数のスケーリング（経験値で 0.0-0.4 程度）
-    - m: ボール質量 [kg]
-    - restitution: 法線方向の反発係数
-    - spin_restitution: バウンド後の回転保持率（0-1）
-    - tangential_friction: バウンドでの接線速度の減衰（0-1）
-    - dt: タイムステップ [s]
-    - max_time: 最大シミュレーション時間 [s]
-    """
+                        max_time=3.0):
 
-    def local_to_global(omega_local):
-        v_dir = np.array([
-            np.cos(theta) * np.sin(phi),
-            np.cos(theta) * np.cos(phi),
-            np.sin(theta)
-        ])
-        v_dir /= np.linalg.norm(v_dir)
-
-        # ローカル座標→ワールド座標変換
-        world_up = np.array([0, 0, 1])
-        right = np.cross(world_up, v_dir)
-        right /= np.linalg.norm(right)
-        up = np.cross(v_dir, right)
-
-        omega_local = np.array(omega_local)
-        omega = (
-            v_dir * omega_local[0] +
-            right * omega_local[1] +
-            up * omega_local[2]
-        )
-
-        return omega
-
-    omega = local_to_global(omega_local)
-    # 初期速度ベクトル（球面座標 -> カート座標）
+    omega = local_to_global(omega_local, theta, phi)
     vx = v0 * np.cos(theta) * np.sin(phi)
     vy = v0 * np.cos(theta) * np.cos(phi)
     vz = v0 * np.sin(theta)
-
     vel = np.array([vx, vy, vz], dtype=float)
     pos = np.array([robo_pos[0], robo_pos[1], robo_pos[2]], dtype=float)
-    omega = np.array(omega, dtype=float)  # 回転ベクトル
-
+    omega = np.array(omega, dtype=float)
     xs, ys, zs = [pos[0]], [pos[1]], [pos[2]]
     bounces = []
     t = 0.0
 
-    # 安全上限ステップ数
     max_steps = int(max_time / dt)
 
     for _ in range(max_steps):
@@ -109,21 +90,16 @@ def simulate_trajectory(v0, theta, phi, robo_pos,
 
         F_drag = -0.5 * RHO_AIR * C_d * A_CROSS * speed**2 * v_hat
 
-
         omega_norm = np.linalg.norm(omega)
         if omega_norm < 1e-9 or speed < 1e-9:
             F_magnus = np.zeros(3)
         else:
             F_magnus = RHO_AIR * C_l * A_CROSS * R_BALL * np.cross(omega, vel)
 
-        # 重力
         F_grav = np.array([0.0, 0.0, -m * g])
-
-        # 合力 -> 加速度
         F_total = F_drag + F_magnus + F_grav
         acc = F_total / m
 
-        # 時刻進める（単純な陽的オイラー；必要なら RK4 に拡張）
         vel = vel + acc * dt
         pos = pos + vel * dt
         t += dt
@@ -132,88 +108,72 @@ def simulate_trajectory(v0, theta, phi, robo_pos,
         ys.append(pos[1])
         zs.append(pos[2])
 
-        # 台（z=0）との衝突判定
         if pos[2] <= 0 and vel[2] < 0:
-            # 衝突位置を補間してもう少し正確に当てる（簡易）
-            # 補間係数 alpha: pos_old + alpha * vel_old*dt => z==0 を解く
             z_prev = zs[-2]
-            v_prev_z = (zs[-1] - zs[-2]) / dt  # 近似
+            v_prev_z = (zs[-1] - zs[-2]) / dt
             if abs(v_prev_z) > 1e-9:
-                alpha = z_prev / (pos[2] - z_prev)
-                # 位置補正（より正確にバウンド位置を取る）
+                alpha = z_prev / (z_prev - pos[2])
+                alpha = np.clip(alpha, 0.0, 1.0)
                 pos[0] = xs[-2] + (pos[0] - xs[-2]) * alpha
                 pos[1] = ys[-2] + (pos[1] - ys[-2]) * alpha
                 pos[2] = 0.0
             else:
                 pos[2] = 0.0
 
-            # 法線方向（z）の反発
             vel_normal = np.array([0.0, 0.0, vel[2]])
             vel_tangent = vel - vel_normal
-
-            # 反発係数（法線）
             vel_normal[2] = -vel_normal[2] * restitution
-
-            # 接線方向は摩擦で減衰させる（ラフにモデル化）
             vel_tangent = vel_tangent * tangential_friction
-
-            # 角速度の変化（簡易）：バウンドで一部減衰
             omega = omega * spin_restitution
-
-            # 合成して新しい速度
             vel = vel_tangent + vel_normal
 
             bounces.append((pos[0], pos[1]))
-            # ここでバウンド回数チェック
-            if len(bounces) >= max_bounce:
+            # 位置チェック
+            if pos[0] < -TABLE_WIDTH/2 or pos[0] > TABLE_WIDTH/2:
+                break
+            if pos[1] < 0 or pos[1] > TABLE_LENGTH:
+                break
+            if len(bounces) == 1:
+                if pos[1] > NET_Y:
+                    break
+            else:
+                if pos[1] < NET_Y:
+                    break
+            if len(bounces) >= 2:
                 break
 
-            # 小さな上向き速度が得られた場合は継続（次の飛行）
-        # y方向の距離制限で停止（前方判定）
         if pos[1] >= y_limit:
             break
-
-        # ありえない高さで停止（安全）
         if pos[2] > 5.0:
             break
-
-        # 時間上限
         if t >= max_time:
             break
 
     return np.array(xs), np.array(ys), np.array(zs), bounces
 
-# evaluate_serve 等は引数の互換性を保つためにほぼ変えずに利用できるようにします。
-def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None,
-                   **sim_kwargs):
-    """
-    simulate_trajectory に渡す追加引数は sim_kwargs へ。
-    """
+def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None, **sim_kwargs):
     x, y, z, bounces = simulate_trajectory(v, theta, phi, robo_pos, **sim_kwargs)
     BAD_SCORE = -10000.0
     SAFE_HEIGHT = 0.05  # ネット上を通過するための余裕
-    pos_alpha = 100.0
-    mode_alpha = 1.0
+    pos_alpha = 100.0 # 位置の重要度
+    mode_alpha = 1.0 # モードの重要度
 
     if len(bounces) < 2:
         return BAD_SCORE
-    for bx, by in bounces[:2]:
-        if bx < -TABLE_WIDTH/2 or bx > TABLE_WIDTH/2:
-            return BAD_SCORE
-        if by < 0 or by > TABLE_LENGTH:
-            return BAD_SCORE
+    # simulate内で判定するので多分いらない
+    # for bx, by in bounces[:2]:
+    #     if bx < -TABLE_WIDTH/2 or bx > TABLE_WIDTH/2:
+    #         return BAD_SCORE
+    #     if by < 0 or by > TABLE_LENGTH:
+    #         return BAD_SCORE
 
-    # ネット位置に最も近い y のインデックス
     idx_net = np.argmin(np.abs(y - NET_Y))
     if z[idx_net] < NET_HEIGHT + SAFE_HEIGHT:
         return BAD_SCORE
-
     bounce1 = bounces[0]
     bounce2 = bounces[1]
-
     err1 = (bounce1[0] - target_my[0])**2 + (bounce1[1] - target_my[1])**2 if target_my else 0.0
     err2 = (bounce2[0] - target_oppo[0])**2 + (bounce2[1] - target_oppo[1])**2 if target_oppo else 0.0
-
     score = -(err1 + err2) * pos_alpha
     if mode == "speed":
         if target is not None:
@@ -224,8 +184,7 @@ def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None
 
     return score
 
-def find_best_theta(v, theta_list, phi, robo_pos, target_my, target_oppo,
-                              mode=None, target=None, **sim_kwargs):
+def find_best_theta(v, theta_list, phi, robo_pos, target_my, target_oppo, mode=None, target=None, **sim_kwargs):
     best_theta = None
     best_score = -1e9
 
@@ -242,8 +201,6 @@ def find_best_serve_params(v_list, theta_list, phi_step, robo_pos, target_my, ta
     best_theta = None
     best_phi = None
     best_score = -1e9
-
-    # xy平面上でphiを求める（ターゲットが与えられたとき）
     omega_local = sim_kwargs.get("omega_local", (0.0, 0.0, 0.0))
     
     if target_oppo is not None:
@@ -279,7 +236,7 @@ def find_best_serve_params(v_list, theta_list, phi_step, robo_pos, target_my, ta
 
     return best_v, best_theta, best_phi, best_score
 
-# ========== 描画関係は変えていません（元コードのまま利用） ==========
+# 描画関係
 def draw_table_3d(ax):
     X = [-TABLE_WIDTH/2, TABLE_WIDTH/2, TABLE_WIDTH/2, -TABLE_WIDTH/2, -TABLE_WIDTH/2]
     Y = [0, 0, TABLE_LENGTH, TABLE_LENGTH, 0]
@@ -305,8 +262,8 @@ def plot_3views(trajectories):
         ax3d.plot(tr["x"], tr["y"], tr["z"], label=f"traj {idx}")
         for j, (xb, yb) in enumerate(tr["bounces"]):
             ax3d.scatter(xb, yb, 0, color='r' if j == 0 else 'g', s=40)
-    ax3d.set_xlabel("x [m] (Left–Right)")
-    ax3d.set_ylabel("y [m] (Front–Back)")
+    ax3d.set_xlabel("x [m] (Left-Right)")
+    ax3d.set_ylabel("y [m] (Front-Back)")
     ax3d.set_zlabel("z [m] (Height)")
     ax3d.set_xlim(-TABLE_WIDTH/2, TABLE_WIDTH/2)
     ax3d.set_ylim(0, TABLE_LENGTH)
@@ -322,11 +279,11 @@ def plot_3views(trajectories):
         ax_top.plot(tr["x"], tr["y"], label=f"traj {idx}")
         for j, (xb, yb) in enumerate(tr["bounces"]):
             ax_top.plot(xb, yb, 'ro' if j == 0 else 'go')
-    ax_top.set_xlabel("x [m] (Left–Right)")
-    ax_top.set_ylabel("y [m] (Front–Back)")
+    ax_top.set_xlabel("x [m] (Left-Right)")
+    ax_top.set_ylabel("y [m] (Front-Back)")
     ax_top.set_xlim(-TABLE_WIDTH/2, TABLE_WIDTH/2)
     ax_top.set_ylim(0, TABLE_LENGTH)
-    ax_top.set_title("Top View (x–y)")
+    ax_top.set_title("Top View (x-y)")
     ax_top.legend()
 
     ax_side = fig.add_subplot(gs[0, 2])
@@ -338,19 +295,20 @@ def plot_3views(trajectories):
         ax_side.plot(tr["y"], tr["z"], label=f"traj {idx}")
         for j, (xb, yb) in enumerate(tr["bounces"]):
             ax_side.plot(yb, 0, 'ro' if j == 0 else 'go')
-    ax_side.set_xlabel("y [m] (Front–Back)")
+    ax_side.set_xlabel("y [m] (Front-Back)")
     ax_side.set_ylabel("z [m] (Height)")
     ax_side.set_xlim(0, TABLE_LENGTH)
     ax_side.set_ylim(0, 1.5)
-    ax_side.set_title("Side View (y–z)")
+    ax_side.set_title("Side View (y-z)")
     ax_side.legend()
 
     plt.tight_layout()
     plt.show()
 
 def main():
-    """パラメータメモ
-    発射高さ27cm,射出速度3m/s程度"""
+    """メモ
+    発射高さ27cm,射出速度3m/s程度
+    座標系x:左右, y:前後, z:高さ"""
     robo_pos = (-0.5, 0, 0.27) # ロボットの位置
     target_my = None     # 1バウンド目（自分側）
     target_oppo = (-0.5, 2.0)  # 2バウンド目（相手側）
@@ -374,7 +332,6 @@ def main():
     v_list_coast = np.linspace(1.0, 5.0, 5)
     theta_list_coast = np.deg2rad(np.linspace(-45, 45, 5))
     phi_step_coast = 5
-
 
     start = time.time()
     coast_v, coast_theta, coast_phi, score = find_best_serve_params(v_list_coast, theta_list_coast, phi_step_coast, robo_pos, target_my, target_oppo, mode=mode, target=target_speed, **sim_kwargs_coast)
