@@ -17,6 +17,20 @@ A_CROSS = np.pi * R_BALL**2  # 正面投影面積 [m^2]
 M_BALL = 0.0027         # 質量 [kg]（約2.7 g）
 RHO_AIR = 1.225         # 空気密度 [kg/m^3]
 
+def spin_ang_to_local_omega(spin_rate, spin_ang):
+    ang_rad = np.deg2rad(spin_ang)
+    wx = 0
+    wy = spin_rate * np.cos(ang_rad)
+    wz = spin_rate * -np.sin(ang_rad)
+    if abs(wx) < 1e-9:
+        wx = 0.0
+    if abs(wy) < 1e-9:
+        wy = 0.0
+    if abs(wz) < 1e-9:
+        wz = 0.0
+
+    return (wx, wy, wz)
+
 # ========== 軌道シミュレーション（ドラッグ＋マグヌス） ==========
 def simulate_trajectory(v0, theta, phi, robo_pos,
                         omega_local=(0.0, 0.0, 0.0),
@@ -125,7 +139,7 @@ def simulate_trajectory(v0, theta, phi, robo_pos,
             z_prev = zs[-2]
             v_prev_z = (zs[-1] - zs[-2]) / dt  # 近似
             if abs(v_prev_z) > 1e-9:
-                alpha = z_prev / (z_prev - pos[2])  # 0<=alpha<=1 なら補間可
+                alpha = z_prev / (pos[2] - z_prev)
                 # 位置補正（より正確にバウンド位置を取る）
                 pos[0] = xs[-2] + (pos[0] - xs[-2]) * alpha
                 pos[1] = ys[-2] + (pos[1] - ys[-2]) * alpha
@@ -170,7 +184,7 @@ def simulate_trajectory(v0, theta, phi, robo_pos,
     return np.array(xs), np.array(ys), np.array(zs), bounces
 
 # evaluate_serve 等は引数の互換性を保つためにほぼ変えずに利用できるようにします。
-def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None, mode_alpha=1.0,
+def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None, mode = "speed", target = None,
                    **sim_kwargs):
     """
     simulate_trajectory に渡す追加引数は sim_kwargs へ。
@@ -178,6 +192,8 @@ def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None
     x, y, z, bounces = simulate_trajectory(v, theta, phi, robo_pos, **sim_kwargs)
     BAD_SCORE = -10000.0
     SAFE_HEIGHT = 0.05  # ネット上を通過するための余裕
+    pos_alpha = 100.0
+    mode_alpha = 1.0
 
     if len(bounces) < 2:
         return BAD_SCORE
@@ -198,7 +214,7 @@ def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None
     err1 = (bounce1[0] - target_my[0])**2 + (bounce1[1] - target_my[1])**2 if target_my else 0.0
     err2 = (bounce2[0] - target_oppo[0])**2 + (bounce2[1] - target_oppo[1])**2 if target_oppo else 0.0
 
-    score = -(err1 + err2)
+    score = -(err1 + err2) * pos_alpha
     if mode == "speed":
         if target is not None:
             score += -abs(v - target) * mode_alpha
@@ -208,14 +224,12 @@ def evaluate_serve(v, theta, phi, robo_pos, target_my = None, target_oppo = None
 
     return score
 
-def find_best_theta(v, phi, robo_pos, target_my, target_oppo,
-                              theta_min_deg=-45, theta_max_deg=45, steps=45, mode=None, target=None, **sim_kwargs):
+def find_best_theta(v, theta_list, phi, robo_pos, target_my, target_oppo,
+                              mode=None, target=None, **sim_kwargs):
     best_theta = None
     best_score = -1e9
 
-    thetas = np.linspace(np.deg2rad(theta_min_deg), np.deg2rad(theta_max_deg), steps)
-
-    for theta in thetas:
+    for theta in theta_list:
         score = evaluate_serve(v, theta, phi, robo_pos, target_my, target_oppo, mode=mode, target=target, **sim_kwargs)
         if score > best_score:
             best_score = score
@@ -223,13 +237,15 @@ def find_best_theta(v, phi, robo_pos, target_my, target_oppo,
 
     return best_theta, best_score
 
-def find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode="speed", target=10.0, **sim_kwargs):
+def find_best_serve_params(v_list, theta_list, phi_step, robo_pos, target_my, target_oppo, mode="speed", target=10.0, **sim_kwargs):
     best_v = None
     best_theta = None
     best_phi = None
     best_score = -1e9
 
     # xy平面上でphiを求める（ターゲットが与えられたとき）
+    omega_local = sim_kwargs.get("omega_local", (0.0, 0.0, 0.0))
+    
     if target_oppo is not None:
         phi = np.arctan2(target_oppo[0] - robo_pos[0], target_oppo[1] - robo_pos[1])
     elif target_my is not None:
@@ -237,14 +253,29 @@ def find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode="speed
     else:
         phi = 0.0
 
-    for v in v_list:
-        theta, score = find_best_theta(v, phi, robo_pos, target_my, target_oppo,
-                                        mode=mode, target=target, **sim_kwargs)
-        if score > best_score:
-            best_score = score
-            best_theta = theta
-            best_phi = phi
-            best_v = v
+    if abs(omega_local[2]) < 100:
+        for v in v_list:
+            theta, score = find_best_theta(v, theta_list, phi, robo_pos, target_my, target_oppo,
+                                            mode=mode, target=target, **sim_kwargs)
+            if score > best_score:
+                best_score = score
+                best_theta = theta
+                best_phi = phi
+                best_v = v
+    else:
+        if omega_local[2] < 0:
+            phi_list = np.linspace(phi-np.pi/4, phi, phi_step)
+        else:
+            phi_list = np.linspace(phi, phi+np.pi/4, phi_step)
+        for v in v_list:
+            for phi in phi_list:
+                theta, score = find_best_theta(v, theta_list, phi, robo_pos, target_my, target_oppo,
+                                                mode=mode, target=target, **sim_kwargs)
+                if score > best_score:
+                    best_score = score
+                    best_theta = theta
+                    best_phi = phi
+                    best_v = v
 
     return best_v, best_theta, best_phi, best_score
 
@@ -318,17 +349,40 @@ def plot_3views(trajectories):
     plt.show()
 
 def main():
-    robo_pos = (0.2, 0, 0.27) # ロボットの位置
+    """パラメータメモ
+    発射高さ27cm,射出速度3m/s程度"""
+    robo_pos = (-0.5, 0, 0.27) # ロボットの位置
     target_my = None     # 1バウンド目（自分側）
-    target_oppo = (0.5, 2.0)  # 2バウンド目（相手側）
-    v_list = np.arange(0.0, 6.0, 1.0)
+    target_oppo = (-0.5, 2.0)  # 2バウンド目（相手側）
+    spin_rate = 300.0  # 回転速度 [rad/s]
+    spin_ang = 90 #0:トップ， 90:右サイド，180:バック，270:左サイド
     mode = "speed"
-    target_speed = 3.0  # 目標速度 [m/s]
+    target_speed = 10.0  # 目標速度 [m/s]
+    omega_local = spin_ang_to_local_omega(spin_rate, spin_ang)
 
-    # 例: 少しトップスピン（x軸周りの負の回転）、少し側回転を混ぜた回転ベクトル
-    # omega = (wx, wy, wz) [rad/s]。w ~ 50-200 rad/s は卓球ボールであり得る範囲（試験的に）
-    sim_kwargs = {
-        "omega_local": (0.0, 80.0, -200.0),  # (wx, wy, wz) - 調整してみてください
+    sim_kwargs_coast = {
+        "omega_local": omega_local,  # (wx, wy, wz)
+        "C_d": 0.5,
+        "C_l": 0.18,
+        "m": M_BALL,
+        "restitution": 0.9,
+        "spin_restitution": 0.85,
+        "tangential_friction": 0.9,
+        "dt": 0.01,
+        "max_time": 1.0
+    }
+    v_list_coast = np.linspace(1.0, 5.0, 5)
+    theta_list_coast = np.deg2rad(np.linspace(-45, 45, 5))
+    phi_step_coast = 5
+
+
+    start = time.time()
+    coast_v, coast_theta, coast_phi, score = find_best_serve_params(v_list_coast, theta_list_coast, phi_step_coast, robo_pos, target_my, target_oppo, mode=mode, target=target_speed, **sim_kwargs_coast)
+    time_coast = time.time() - start
+    print("粗探索時間:", time_coast, "秒")
+
+    sim_kwargs_fine = {
+        "omega_local": omega_local,  # (wx, wy, wz)
         "C_d": 0.5,
         "C_l": 0.18,
         "m": M_BALL,
@@ -336,18 +390,21 @@ def main():
         "spin_restitution": 0.85,
         "tangential_friction": 0.9,
         "dt": 0.005,
-        "max_time": 2.0
+        "max_time": 1.0
     }
+    v_list_fine = np.linspace(coast_v-0.5, coast_v+0.5, 5)
+    theta_list_fine = (np.linspace(coast_theta - np.deg2rad(10), coast_theta + np.deg2rad(10), 5))
+    phi_step_fine = 5
 
-    start = time.time()
-    best_v, best_theta, best_phi, score = find_best_serve_params(v_list, robo_pos, target_my, target_oppo, mode=mode, target=target_speed, **sim_kwargs)
+    best_v, best_theta, best_phi, score = find_best_serve_params(v_list_fine, theta_list_fine, phi_step_fine, robo_pos, target_my, target_oppo, mode=mode, target=target_speed, **sim_kwargs_fine)
+
     end = time.time()
     print("探索時間:", end - start, "秒")
     print("最適速度:", best_v, "m/s")
     print("最適仰角:", np.rad2deg(best_theta), "度")
     print("最適横回転角:", np.rad2deg(best_phi), "度")
     print("評価スコア:", score)
-    x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos, **sim_kwargs)
+    x, y, z, b = simulate_trajectory(best_v, best_theta, best_phi, robo_pos, **sim_kwargs_fine)
     plot_3views([{"x": x, "y": y, "z": z, "bounces": b}])
 
 if __name__ == "__main__":
