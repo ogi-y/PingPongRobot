@@ -20,7 +20,7 @@ class ServeController(Node):
         # /player_pos topic JSON example:
         # {"pos": "left"}
         self.create_subscription(Bool, '/serve_trigger', self.serve_callback, 10)
-        self.publisher = self.create_publisher(String, '/serve_param', 10)
+        self.publisher = self.create_publisher(String, '/serve_target', 10)
         self.timer = self.create_timer(0.1, self.decide_serve)
 
         self.robo_pos_choices = {
