@@ -35,6 +35,7 @@ setup(
             'controller = pingpong.controller:main',
             'serve_calculator = pingpong.serve_calculator:main',
             'sample_image_subscriber = pingpong.sample_image_subscriber:main',
+            'motor_controller = pingpong.motor_controller:main'
         ],
     },
 )
