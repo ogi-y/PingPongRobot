@@ -24,9 +24,9 @@ class ServeController(Node):
         self.timer = self.create_timer(0.1, self.decide_serve)
 
         self.robo_pos_choices = {
-                0: [0, 1],
-                1: [0, 2, 1],
-                2: [2, 1],
+                0: [0, 0.5],
+                0.5: [0, 0.5, 1],
+                1: [0.5, 1],
             }
 
     def age_callback(self, msg):

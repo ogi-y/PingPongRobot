@@ -46,15 +46,15 @@ class MotorController(Node):
         各モーターの指令値を計算して辞書で返す
         """
         # 位置モーター（ステージ移動など）
-        motor_pos = self.robo_pos_to_motor_steps(robo_pos)
+        motor_pos = self.robo_pos_to_motor_steps(robo_pos)# 0~2000mm
 
         # サーブ角制御（ロール・ピッチ・ヨー）
-        motor_roll = self.angle_to_servo(roll)
-        motor_pitch = self.angle_to_servo(pitch)
-        motor_yaw = self.angle_to_servo(yaw)
+        motor_roll = self.angle_to_servo(roll) # 0~180度
+        motor_pitch = self.angle_to_servo(pitch)# 0~180度
+        motor_yaw = self.angle_to_servo(yaw) # 0~180度
 
         # 発射モーター（左右ホイール）
-        left_rpm, right_rpm = self.v_to_wheel_rpm(v, roll)
+        left_rpm, right_rpm = self.v_to_wheel_rpm(v, roll) #-100~100
 
         # ボール供給モーター（1回転分を仮定）
         feeder_cmd = 1.0
@@ -71,7 +71,7 @@ class MotorController(Node):
 
     def robo_pos_to_motor_steps(self, pos):
         """ロボ位置をモーターステップに変換（仮）"""
-        return int(pos * 1000)  # 例：1.0m → 1000ステップ
+        return int(pos*1000)  # 例：1.0m → 1000ステップ
 
     def angle_to_servo(self, angle_deg):
         """角度→サーボ角度(0〜180度想定)"""
