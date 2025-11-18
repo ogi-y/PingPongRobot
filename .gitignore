@@ -11,3 +11,4 @@ install/
 log/
 venv/
 .github/
+.vscode/
