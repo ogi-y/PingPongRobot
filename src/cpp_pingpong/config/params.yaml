@@ -1,0 +1,21 @@
+/**:
+  ros__parameters:
+    court:
+      width: 1525.0
+      length: 2740.0
+      net_height: 152.5
+    
+    # 座標定義 (コートサイズに対する比率 0.0~1.0)
+    coordinates:
+      x_left_ratio: 0.2
+      x_center_ratio: 0.5
+      x_right_ratio: 0.8
+      
+      y_short_ratio: 0.6
+      y_middle_ratio: 0.75
+      y_long_ratio: 0.9
+
+    # ロボットの設定
+    robot:
+      x_position: 762.5  # ロボットの設置X座標
+      y_position: 0.0     # ロボットの設置Y座標

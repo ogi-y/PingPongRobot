@@ -2,6 +2,8 @@
 float32 target_x  # 狙う場所のX座標 (mm)
 float32 target_y  # 狙う場所のY座標 (mm) 奥方向
 float32 height_z  # 狙う高さ (mm) ネット越えなら高く、バウンド狙いなら0
+int32 spin # 左右モーターの回転量の差
+float32 roll
 string speed_mode # "fast", "normal", "slow"
 
 ---

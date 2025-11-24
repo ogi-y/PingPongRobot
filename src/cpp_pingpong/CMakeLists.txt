@@ -16,10 +16,16 @@ find_package(pingpong_msgs REQUIRED)
 add_executable(controller src/controller.cpp)
 add_executable(ballistics src/ballistics.cpp)
 
-ament_target_dependencies(controller ballistics rclcpp pingpong_msgs)
-ament_package()
+ament_target_dependencies(controller rclcpp pingpong_msgs)
+ament_target_dependencies(ballistics rclcpp pingpong_msgs)
 
 install(TARGETS
   controller
+  ballistics
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY config launch
+  DESTINATION share/${PROJECT_NAME}
+)
+ament_package()

@@ -9,8 +9,6 @@
 #include "pingpong_msgs/srv/target_shot.hpp"
 
 // 定数
-constexpr float ROBOT_X = 1000.0f; // ロボットの設置位置X (中央)
-constexpr float ROBOT_Y = 0.0f;    // ロボットの設置位置Y (手前)
 constexpr float GRAVITY = 9.81f;
 
 using namespace std::chrono_literals;
@@ -21,6 +19,9 @@ public:
     BallisticsNode()
     : Node("ballistics_node")
     {
+        this->declare_parameter("robot.x_position", 762.5);
+        this->declare_parameter("robot.y_position", 0.0);
+
         // モータ指令を送るPublisher
         shot_pub_ = this->create_publisher<pingpong_msgs::msg::ShotParams>("shot_command", 10);
 
@@ -37,9 +38,12 @@ private:
         const std::shared_ptr<pingpong_msgs::srv::TargetShot::Request> request,
         std::shared_ptr<pingpong_msgs::srv::TargetShot::Response> response)
     {
+        float robot_x = this->get_parameter("robot.x_position").as_double();
+        float robot_y = this->get_parameter("robot.y_position").as_double();
+
         // 1. 目標との相対距離を計算
-        float dx = request->target_x - ROBOT_X;
-        float dy = request->target_y - ROBOT_Y;
+        float dx = request->target_x - robot_x;
+        float dy = request->target_y - robot_y;
         float dist_xy = std::sqrt(dx*dx + dy*dy); // 平面距離
 
         // 2. Yaw (左右角度) の計算
@@ -73,18 +77,18 @@ private:
         }
 
         // 4. モータ左右差の計算 (カーブさせたい場合など)
-        // 今回はシンプルに左右同じ
-        int power_L = static_cast<int>(base_power);
-        int power_R = static_cast<int>(base_power);
+        
+        int power_L = static_cast<int>(base_power) + request->spin;
+        int power_R = static_cast<int>(base_power) - request->spin;
 
-        // クリップ処理 (0~100)
-        power_L = std::max(0, std::min(100, power_L));
-        power_R = std::max(0, std::min(100, power_R));
+        // クリップ処理 (-100~100)
+        power_L = std::max(-100, std::min(100, power_L));
+        power_R = std::max(-100, std::min(100, power_R));
 
         // 5. メッセージ作成と送信
         auto msg = pingpong_msgs::msg::ShotParams();
-        msg.pos = ROBOT_X; // ロボット自体の位置は固定
-        msg.roll_deg = 0.0f;
+        msg.pos = robot_x; // ロボット自体の位置は固定
+        msg.roll_deg = request->roll;
         msg.pitch_deg = pitch_deg;
         msg.yaw_deg = yaw_deg;
         msg.pow_left = power_L;
@@ -94,8 +98,8 @@ private:
 
         // ログとレスポンス
         RCLCPP_INFO(this->get_logger(), 
-            "Solved: Tgt(%.0f, %.0f) -> Yaw:%.1f, Pitch:%.1f, Pwr:%d",
-            request->target_x, request->target_y, yaw_deg, pitch_deg, power_L);
+            "Solved: Tgt(%.0f, %.0f) -> Roll: %.1f, Yaw: %.1f, Pitch: %.1f, PowL: %d, PowR: %d",
+            request->target_x, request->target_y, request->roll, yaw_deg, pitch_deg, power_L, power_R);
 
         response->success = true;
         response->message = "Fired";

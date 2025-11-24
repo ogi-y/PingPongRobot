@@ -25,7 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'analyzer = py_pingpong.vision_analyzer:main',
-            'server = py_pingpong.server:main',
+            'strategy_server = py_pingpong.strategy_server:main',
         ],
     },
 )
