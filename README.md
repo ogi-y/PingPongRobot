@@ -22,7 +22,7 @@ ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 1}"
 ~~~
 
 ## 発射サービスの説明
-- マニュアルモードはdifficulty: 0を指定
+- マニュアルモードはdifficulty: 0を指定（または記述しない）
 ~~~(bash)
 ros2 service call /shoot pingpong_msgs/srv/Shoot "{pos: 1000.0, pow_right: 10, pow_left: 10}"
 ~~~
