@@ -4,38 +4,25 @@
 ## 概要
 - 年齢に応じて難易度が変わる卓球サーブロボ（予定）
 - ROS2パッケージ部分だけ抜き出したものを後日作成予定
+- 3つのパッケージが含まれています
 
-## 必要パッケージ
+## パッケージリスト
+- cpp_pingpong:モーター制御用メッセージの生成
+- pingpong_msgs:モーター制御用カスタムメッセージ
+- pingpong:顔認識、年齢推定、射出軌道の計算など（必須ではない）
+
+## HowToUse
+1. コントローラーを起動
+'''(bash)
+ros2 run cpp_pingpong controller 
+'''
+
+## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
 - opencv-python
 - cv_bridge
 - deepface
 - tensorflow
-
-## HowToUse
-```(bash)
-# ビルド&セットアップ
-colcon build
-source install/setup.bash
-
-# ノード実行
-ros2 run pingpong image_publisher
-ros2 run pingpong age_estimation
-```
-
-## ノード構成
-- **image_publisher**  
-  /data/images内の画像を `/camera/image_raw` トピックに定期送信します。  
-  実装: [`pingpong.image_publisher`](src/pingpong/pingpong/image_publisher.py)
-
-- **age_estimation**  
-  画像から顔年齢を推定し、`age` トピックに結果を送信します。  
-  初回起動時はモデルのダウンロードが発生します。  
-  実装: [`pingpong.age_estimation`](src/pingpong/pingpong/age_estimation.py)
-
-- **sample_image_subscriber**  
-  画像サイズを受信・表示します。  
-  実装: [`pingpong.sample_image_subscriber`](src/pingpong/pingpong/sample_image_subscriber.py)
 
 ## 動作確認済み環境
 - OS: Windows 11（WSL2: Ubuntu 24.04.1 LTS）
