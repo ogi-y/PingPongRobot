@@ -41,6 +41,4 @@ def generate_launch_description():
         serve_calculator_node,
         vision_processor_node,
         controller_node,
-        motor_controller_node,
-        #trigger_node,
     ])

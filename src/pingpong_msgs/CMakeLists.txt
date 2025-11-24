@@ -12,6 +12,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ShotParams.msg"
   "srv/Shoot.srv"
+  "srv/TargetShot.srv"
   )
 # uncomment the following section in order to fill in
 # further dependencies manually.

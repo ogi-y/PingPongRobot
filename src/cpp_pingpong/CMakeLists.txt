@@ -14,8 +14,9 @@ find_package(rclcpp REQUIRED)
 find_package(pingpong_msgs REQUIRED)
 
 add_executable(controller src/controller.cpp)
+add_executable(ballistics src/ballistics.cpp)
 
-ament_target_dependencies(controller rclcpp pingpong_msgs)
+ament_target_dependencies(controller ballistics rclcpp pingpong_msgs)
 ament_package()
 
 install(TARGETS
