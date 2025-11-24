@@ -87,7 +87,7 @@ private:
 
         // 5. メッセージ作成と送信
         auto msg = pingpong_msgs::msg::ShotParams();
-        msg.pos = robot_x; // ロボット自体の位置は固定
+        msg.pos = robot_x;
         msg.roll_deg = request->roll;
         msg.pitch_deg = pitch_deg;
         msg.yaw_deg = yaw_deg;
