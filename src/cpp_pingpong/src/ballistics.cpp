@@ -59,21 +59,32 @@ private:
         float base_power = 0.0f;
 
         // スピードモードによる打ち分け
-        if (request->speed_mode == "fast") {
-            // 直線的な軌道 (低弾道・高パワー)
-            pitch_deg = -5.0f; 
-            // 距離に応じて線形にパワーを上げる簡易モデル
-            // 例: 距離1mでパワー50, 2mでパワー90
-            base_power = 30.0f + (dist_xy / 2000.0f) * 60.0f;
+        // if (request->speed_mode == "fast") {
+        //     // 直線的な軌道 (低弾道・高パワー)
+        //     pitch_deg = -40.0f; 
+        //     base_power = 30.0f + (dist_xy / 2000.0f) * 30.0f;
         
-        } else if (request->speed_mode == "slow") {
-            // 山なり軌道 (高弾道・低パワー)
-            pitch_deg = 5.0f; 
-            base_power = 20.0f + (dist_xy / 2000.0f) * 40.0f;
+        // } else if (request->speed_mode == "slow") {
+        //     // 山なり軌道 (高弾道・低パワー)
+        //     pitch_deg = -10.0f; 
+        //     base_power = 20.0f + (dist_xy / 2000.0f) * 10.0f;
         
-        } else { // normal
-            pitch_deg = -2.0f;
-            base_power = 25.0f + (dist_xy / 2000.0f) * 50.0f;
+        // } else { // normal
+        //     pitch_deg = -20.0f;
+        //     base_power = 25.0f + (dist_xy / 2000.0f) * 20.0f;
+        // }
+
+        // 奥行きで打ち分け
+        if (dist_xy < 1000.0f) {
+            base_power = 30;
+            pitch_deg = -40.0f; 
+        } else if (dist_xy < 3000.0f) {
+            base_power = 40;
+            pitch_deg = -30.0f;
+        }
+        else {
+            base_power = 50;
+            pitch_deg = -20.0f;
         }
 
         // 4. モータ左右差の計算 (カーブさせたい場合など)
