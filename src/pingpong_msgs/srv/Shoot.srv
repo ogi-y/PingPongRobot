@@ -1,0 +1,15 @@
+# Request
+int32 difficulty  # 0:マニュアルモード, 1~: 難易度指定モード
+
+# マニュアルモード用 (difficulty=0の時だけ使われる)
+float32 pos
+float32 roll_deg
+float32 pitch_deg
+float32 yaw_deg
+int8 pow_right
+int8 pow_left
+
+---
+# Response
+bool success
+string message
