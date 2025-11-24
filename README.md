@@ -13,9 +13,9 @@
 
 ## HowToUse
 1. コントローラーを起動
-'''(bash)
+~~~(bash)
 ros2 run cpp_pingpong controller 
-'''
+~~~
 
 ## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
