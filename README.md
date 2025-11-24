@@ -16,6 +16,18 @@
 ~~~(bash)
 ros2 run cpp_pingpong controller 
 ~~~
+2. 発射サービスを呼び出し
+~~~(bash)
+ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 1}"
+~~~
+
+## 発射サービスの説明
+- マニュアルモードはdifficulty: 0を指定
+~~~(bash)
+ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 1, pos: 1000.0, pow_right: 10, pow_left: 10}"
+~~~
+- difficultyが0以外のときはテンプレートから自動選択
+- 入力しなかったパラメータは0として扱う
 
 ## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
