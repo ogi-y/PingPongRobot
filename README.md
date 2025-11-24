@@ -9,7 +9,9 @@
 ## パッケージリスト
 - cpp_pingpong:モーター制御用メッセージの生成
 - pingpong_msgs:モーター制御用カスタムメッセージ
-- pingpong:顔認識、年齢推定、射出軌道の計算など（必須ではない）
+- py_pingpong:画像処理や軌道計算など
+
+- pingpong:顔認識、年齢推定、射出軌道の計算など（未使用）
 
 ## HowToUse
 1. コントローラーを起動
@@ -20,6 +22,10 @@ ros2 run cpp_pingpong controller
 ~~~(bash)
 ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 1}"
 ~~~
+
+## 自動モード
+1. ros2 launch cpp_pingpong pingpong.launch.py 
+2. ros2 topic pub /serve_trigger std_msgs/msg/Bool "data: true" --once
 
 ## 発射サービスの説明
 - マニュアルモードはdifficulty: 0を指定（または記述しない）
