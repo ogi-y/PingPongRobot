@@ -14,18 +14,18 @@
 - pingpong:顔認識、年齢推定、射出軌道の計算など（未使用）
 
 ## HowToUse
-1. コントローラーを起動
+1. ノード起動
 ~~~(bash)
-ros2 run cpp_pingpong controller 
+ros2 launch cpp_pingpong pingpong.launch.py
 ~~~
-2. 発射サービスを呼び出し
+2. GUIの起動
 ~~~(bash)
-ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 1}"
+ros2 run py_pingpong gui_controller 
 ~~~
-
-## 自動モード
-1. ros2 launch cpp_pingpong pingpong.launch.py 
-2. ros2 topic pub /serve_trigger std_msgs/msg/Bool "data: true" --once
+3. 発射コマンドの確認
+~~~(bash)
+ros2 topic echo /shot_command
+~~~
 
 ## 発射サービスの説明
 - マニュアルモードはdifficulty: 0を指定（または記述しない）
