@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'analyzer = py_pingpong.vision_analyzer:main',
             'strategy_server = py_pingpong.strategy_server:main',
+            'gui_controller = py_pingpong.gui_controller:main',
         ],
     },
 )

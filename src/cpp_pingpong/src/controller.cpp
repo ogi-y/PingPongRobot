@@ -8,7 +8,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "pingpong_msgs/msg/shot_params.hpp"
-#include "pingpong_msgs/srv/shoot.hpp" // ★変更: 作成したカスタムサービス
+#include "pingpong_msgs/srv/shoot.hpp" 
 
 using namespace std::chrono_literals;
 constexpr float WIDTH = 2000.0f;
