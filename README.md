@@ -27,14 +27,6 @@ ros2 run py_pingpong gui_controller
 ros2 topic echo /shot_command
 ~~~
 
-## 発射サービスの説明
-- マニュアルモードはdifficulty: 0を指定（または記述しない）
-~~~(bash)
-ros2 service call /shoot pingpong_msgs/srv/Shoot "{pos: 1000.0, pow_right: 10, pow_left: 10}"
-~~~
-- difficultyが0以外のときはその難易度のテンプレートから自動選択
-- 入力しなかったパラメータは0として扱う
-
 ## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
 - opencv-python
