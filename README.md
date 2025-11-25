@@ -28,6 +28,8 @@ ros2 topic echo /shot_command
 ~~~
 
 ## 最小構成
+0. パラメータのテンプレートを定義
+- src/cpp_pingpong/src/controller.cpp
 1. cpp_pingpongとpingpong_msgsをビルド
 ~~~(bash)
 colcon build --packages-select cpp_pingpong pingpong_msgs
