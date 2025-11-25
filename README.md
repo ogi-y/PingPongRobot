@@ -27,6 +27,17 @@ ros2 run py_pingpong gui_controller
 ros2 topic echo /shot_command
 ~~~
 
+## 最小構成
+1. ノード起動
+~~~(bash)
+ros2 run cpp_pingpong controller
+~~~
+2. コマンド送信(difficulty!=0でテンプレートから自動選択)
+~~~(bash)
+ros2 service call /shoot pingpong_msgs/srv/Shoot "{difficulty: 0, pos: 0.0, roll_deg: 0.0, pitch_deg: 0.0, yaw_deg: 0.0, pow_right
+: 0, pow_left: 0}"
+~~~
+
 ## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
 - opencv-python
