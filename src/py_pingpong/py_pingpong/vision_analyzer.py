@@ -72,14 +72,14 @@ class VisionAnalyzer(Node):
 
         # 2. 年齢推定 (DeepFace) - 重いので間引く
         if self.frame_count % self.age_interval == 0:
-            try:
-                # DeepFaceは顔検出も含んでいる
-                # enforce_detection=Falseにすると顔がなくてもエラーにならない
-                analysis = DeepFace.analyze(frame, actions=['age'], enforce_detection=False, silent=True)
-                if isinstance(analysis, list) and len(analysis) > 0:
-                    self.current_age = str(analysis[0]['age'])
-            except Exception as e:
-                pass # 顔が見つからない場合などは無視
+            # DeepFaceは顔検出も含んでいる
+            analysis = DeepFace.analyze(frame, actions=['age'], enforce_detection=False)
+            if len(analysis) == 0:
+                self.get_logger().info("No face detected for age estimation.")
+            elif isinstance(analysis, list):
+                self.current_age = str(analysis[0]['age'])
+            elif isinstance(analysis, dict):
+                self.current_age = str(analysis['age'])
         
         self.frame_count += 1
 
