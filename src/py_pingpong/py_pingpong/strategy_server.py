@@ -73,7 +73,7 @@ class StrategyServer(Node):
             self.think_and_order()
 
     def think_and_order(self):
-        # 1. 状況判断 (どこに人がいるか？)
+        # 状況判断
         player_x_img = None
         age = 30
         
@@ -83,7 +83,7 @@ class StrategyServer(Node):
             if people:
                 player_x_img = people[0].get("pos_x")
 
-        # 2. ターゲット座標の決定 (戦略レイヤー)
+        # ターゲット座標の決定
         target_x = self.coord_c
         target_y = self.coord_mid
         speed_mode = "normal"
