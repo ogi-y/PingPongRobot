@@ -141,7 +141,7 @@ class StrategyServer(Node):
             
         # 3. 軌道計算機への指令
         self.get_logger().info(f"Order: Hit ({target_x:.0f}, {target_y:.0f}) mode={speed_mode}")
-        
+
         req = TargetShot.Request()
         req.target_x = float(target_x)
         req.target_y = float(target_y)

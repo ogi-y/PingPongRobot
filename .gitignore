@@ -15,3 +15,7 @@ venv/
 .vs/
 sandbox/
 data/
+firmware/
+*.meta
+*.repos
+__pycache__/
