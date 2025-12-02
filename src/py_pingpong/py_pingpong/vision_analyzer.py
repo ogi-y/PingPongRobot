@@ -102,14 +102,10 @@ class VisionAnalyzer(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = VisionAnalyzer()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
-        cv2.destroyAllWindows()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
