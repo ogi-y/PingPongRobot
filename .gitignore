@@ -19,3 +19,4 @@ firmware/
 *.meta
 *.repos
 __pycache__/
+uros/
