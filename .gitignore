@@ -19,4 +19,8 @@ firmware/
 *.meta
 *.repos
 __pycache__/
+eProsima/
+micro_ros_setup/
+pingpong_gunner/
+ros2/
 uros/
