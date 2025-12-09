@@ -16,7 +16,7 @@ class VisionAnalyzer(Node):
         super().__init__('vision_analyzer')
         
         # --- 設定 ---
-        self.declare_parameter('source', '0')
+        self.declare_parameter('source', '0') # ノード実行時　ros2 run py_pingpong analyzer --ros-args -p source:='ウェブカメラのアドレス or USBカメラID'
         source_param = self.get_parameter('source').get_parameter_value().string_value
         if source_param.isdigit():
             self.source = int(source_param)
