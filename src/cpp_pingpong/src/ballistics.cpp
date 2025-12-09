@@ -76,15 +76,15 @@ private:
 
         // 奥行きで打ち分け
         if (dist_xy < 1000.0f) {
-            base_power = 30;
-            pitch_deg = -40.0f; 
+            base_power = 10;
+            pitch_deg = -20.0f; 
         } else if (dist_xy < 3000.0f) {
-            base_power = 40;
-            pitch_deg = -30.0f;
+            base_power = 20;
+            pitch_deg = -15.0f;
         }
         else {
-            base_power = 50;
-            pitch_deg = -20.0f;
+            base_power = 30;
+            pitch_deg = -10.0f;
         }
 
         // 4. モータ左右差の計算 (カーブさせたい場合など)
