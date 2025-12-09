@@ -1,13 +1,3 @@
-import os
-import tensorflow as tf
-
-# TensorFlow(DeepFace)にはGPUを見せないように設定（CPU強制）
-# これにより、6GBのVRAMはすべてYOLO(PyTorch)が独占できます
-try:
-    tf.config.set_visible_devices([], 'GPU')
-    print("TensorFlow configured to use CPU only.")
-except Exception as e:
-    print(f"Failed to configure TensorFlow device: {e}")
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
