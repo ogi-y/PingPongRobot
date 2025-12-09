@@ -1,3 +1,13 @@
+import os
+import tensorflow as tf
+
+# TensorFlow(DeepFace)にはGPUを見せないように設定（CPU強制）
+# これにより、6GBのVRAMはすべてYOLO(PyTorch)が独占できます
+try:
+    tf.config.set_visible_devices([], 'GPU')
+    print("TensorFlow configured to use CPU only.")
+except Exception as e:
+    print(f"Failed to configure TensorFlow device: {e}")
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
@@ -39,6 +49,7 @@ class VisionAnalyzer(Node):
 
         self.get_logger().info("Loading YOLOv8 Pose model...")
         self.pose_model = YOLO('yolov8n-pose.pt') 
+        #self.pose_model.to('cpu')
         self.get_logger().info(f"Opening camera source: {self.source}")
         self.cap = cv2.VideoCapture(self.source)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -64,10 +75,10 @@ class VisionAnalyzer(Node):
         )
 
     def process_frame(self):
-        ret, frame = self.cap.read()
+        ret, frame_raw = self.cap.read()
         if not ret:
             return
-        
+        frame = cv2.resize(frame_raw, (640, 480))
         # スレッドセーフに画像をコピー
         with self.lock:
             self.latest_frame = frame.copy()
