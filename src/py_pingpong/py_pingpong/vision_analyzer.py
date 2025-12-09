@@ -16,148 +16,157 @@ class VisionAnalyzer(Node):
         super().__init__('vision_analyzer')
         
         # --- 設定 ---
-        self.declare_parameter('source', '0') 
+        self.declare_parameter('source', '0')
         source_param = self.get_parameter('source').get_parameter_value().string_value
         if source_param.isdigit():
             self.source = int(source_param)
         else:
-            self.source = source_param # "http" -> そのまま
-        self.source = "http://192.168.0.8:8080/video"  # 固定カメラソース設定
+            self.source = source_param
 
-        self.age_interval = 30
-        
-        self.latest_frame = None
-        self.lock = threading.Lock()
-        
-        # --- マルチスレッド設定 ---
-        # 重い処理と軽い処理を並列に走らせるためのグループ設定
-        self.callback_group = ReentrantCallbackGroup()
-
-        self.pub_image = self.create_publisher(Image, '/camera/image_raw', 10)
-        self.pub_result = self.create_publisher(String, '/vision/analysis', 10)
-        self.bridge = CvBridge()
-
-        self.get_logger().info("Loading YOLOv8 Pose model...")
-        self.pose_model = YOLO('yolov8n-pose.pt') 
-        #self.pose_model.to('cpu')
+        # --- カメラ初期化 ---
         self.get_logger().info(f"Opening camera source: {self.source}")
-        self.cap = cv2.VideoCapture(self.source)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # バッファを最小に
+
         if not self.cap.isOpened():
             self.get_logger().error("Could not open camera!")
             exit()
 
-        self.frame_count = 0
-        self.current_age = "Estimating..."
-
-        # 重い処理用のタイマー (callback_groupを指定して並列化許可)
-        self.timer_age = self.create_timer(
-            1.0, 
-            self.process_age_estimation, 
-            callback_group=self.callback_group
-        )
+        # --- 変数初期化 ---
+        self.latest_frame = None       # AI処理用
+        self.current_raw_frame = None  # カメラ取り込み用
+        self.lock = threading.Lock()   # 排他制御
+        self.running = True            # スレッド制御用フラグ
         
-        # メインループ用のタイマー (これもcallback_groupを指定)
-        self.timer = self.create_timer(
-            0.033, 
-            self.process_frame, 
-            callback_group=self.callback_group
-        )
+        self.current_age = "Estimating..."
+        self.frame_count = 0
 
-    def process_frame(self):
-        ret, frame_raw = self.cap.read()
-        if not ret:
-            return
-        frame = cv2.resize(frame_raw, (640, 480))
-        # スレッドセーフに画像をコピー
+        # --- モデル読み込み ---
+        self.get_logger().info("Loading YOLOv8 Pose model...")
+        self.pose_model = YOLO('yolov8n-pose.pt')
+        self.pose_model.to('cpu')
+
+        # --- ROS2設定 ---
+        self.callback_group = ReentrantCallbackGroup()
+        self.pub_image = self.create_publisher(Image, '/camera/image_raw', 10)
+        self.pub_result = self.create_publisher(String, '/vision/analysis', 10)
+        self.bridge = CvBridge()
+
+        # --- スレッド開始（ここが重要！） ---
+        # カメラ映像をひたすら取り込む専用のスレッドを起動
+        self.capture_thread = threading.Thread(target=self.update_camera_buffer)
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+
+        # AI処理用のタイマー
+        self.timer = self.create_timer(0.01, self.process_ai, callback_group=self.callback_group)
+        self.timer_age = self.create_timer(1.0, self.process_age, callback_group=self.callback_group)
+
+    # --- 【追加】カメラ映像を常に最新にする関数 ---
+    def update_camera_buffer(self):
+        while self.running and self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                with self.lock:
+                    # バッファに溜めず、常に最新画像で上書きする
+                    self.current_raw_frame = frame
+            else:
+                # 読み込み失敗時は少し待つ（CPU空回り防止）
+                cv2.waitKey(10)
+
+    # --- メイン処理 ---
+    def process_ai(self):
+        # 最新の画像を取得
+        frame = None
         with self.lock:
-            self.latest_frame = frame.copy()
+            if self.current_raw_frame is not None:
+                frame = self.current_raw_frame.copy()
+        
+        if frame is None:
+            return
 
-        # 姿勢推定 (YOLOは高速なのでここでOK)
+        # リサイズ（負荷軽減）
+        frame = cv2.resize(frame, (640, 480))
+        
+        # DeepFace用にも保存
+        self.latest_frame = frame 
+
+        # YOLO推論
         results = self.pose_model(frame, verbose=False)
         annotated_frame = results[0].plot()
-        
-        detected_people = []
-        if results[0].keypoints is not None:
-            if results[0].keypoints.data.shape[1] > 0: # キーポイントが存在するか確認
-                keypoints = results[0].keypoints.data.cpu().numpy()
-                for i, person_kpts in enumerate(keypoints):
-                    if len(person_kpts) > 0:
-                        nose_x = person_kpts[0][0]
-                        nose_y = person_kpts[0][1]
-                        conf = person_kpts[0][2]
-                        
-                        person_info = {
-                            "id": i,
-                            "pos_x": float(nose_x),
-                            "pos_y": float(nose_y),
-                            "pose_detected": True if conf > 0.5 else False
-                        }
-                        detected_people.append(person_info)
-        
-        self.frame_count += 1
 
-        # 描画
-        cv2.putText(annotated_frame, f"Age: {self.current_age}", (50, 50), 
+        # 人数カウントなどのロジック
+        detected_people = []
+        if results[0].keypoints is not None and results[0].keypoints.data.shape[1] > 0:
+            keypoints = results[0].keypoints.data.cpu().numpy()
+            for i, person_kpts in enumerate(keypoints):
+                if len(person_kpts) > 0:
+                    nose_x = person_kpts[0][0]
+                    nose_y = person_kpts[0][1]
+                    conf = person_kpts[0][2]
+                    detected_people.append({
+                        "id": i, "pos_x": float(nose_x), "pos_y": float(nose_y),
+                        "pose_detected": True if conf > 0.5 else False
+                    })
+
+        # 年齢描画
+        cv2.putText(annotated_frame, f"Age: {self.current_age}", (30, 50), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        # データのPublish
+        # Publish
         try:
             ros_image = self.bridge.cv2_to_imgmsg(annotated_frame, "bgr8")
             self.pub_image.publish(ros_image)
-        except Exception as e:
-            self.get_logger().error(f"Image publish failed: {e}")
+            
+            analysis_data = {
+                "age": self.current_age,
+                "people": detected_people
+            }
+            msg = String()
+            msg.data = json.dumps(analysis_data)
+            self.pub_result.publish(msg)
+        except Exception:
+            pass
 
-        analysis_data = {
-            "age": self.current_age,
-            "people_count": len(detected_people),
-            "people": detected_people
-        }
-        msg = String()
-        msg.data = json.dumps(analysis_data)
-        self.pub_result.publish(msg)
-
-    def process_age_estimation(self):
-        # 映像処理用のフレームを取得
+    def process_age(self):
+        # (変更なし) DeepFace処理...
         frame_to_process = None
-        with self.lock:
-            if self.latest_frame is not None:
-                frame_to_process = self.latest_frame.copy()
-        
+        if self.latest_frame is not None:
+            frame_to_process = self.latest_frame.copy()
+            
         if frame_to_process is not None:
             try:
-                analysis = DeepFace.analyze(frame_to_process, actions=['age'], enforce_detection=False, detector_backend='opencv')
+                analysis = DeepFace.analyze(frame_to_process, actions=['age'], enforce_detection=False)
                 if isinstance(analysis, list) and len(analysis) > 0:
                     self.current_age = str(analysis[0]['age'])
                 elif isinstance(analysis, dict):
                     self.current_age = str(analysis['age'])
-                else:
-                    # 顔が見つからなかった場合など
-                    # self.get_logger().info("No face detected or analysis failed.")
-                    pass
-                    
-            except Exception as e:
-                # self.get_logger().warn(f"Age estimation failed: {e}")
+            except Exception:
                 pass
 
     def __del__(self):
-        if self.cap.isOpened():
-            self.cap.release()
+        self.running = False
+        if self.capture_thread.is_alive():
+            self.capture_thread.join()
+        self.cap.release()
 
 def main(args=None):
     rclpy.init(args=args)
     node = VisionAnalyzer()
-    
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-    
     try:
         executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        node.running = False
+        executor.shutdown()
         node.destroy_node()
-        rclpy.shutdown()
+        try:
+            rclpy.shutdown()
+        except:
+            pass
         cv2.destroyAllWindows()
 
 if __name__ == '__main__':
