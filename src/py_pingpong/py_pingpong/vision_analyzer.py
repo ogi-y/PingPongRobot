@@ -136,7 +136,7 @@ class VisionAnalyzer(Node):
         
         if frame_to_process is not None:
             try:
-                analysis = DeepFace.analyze(frame_to_process, actions=['age'], enforce_detection=False)
+                analysis = DeepFace.analyze(frame_to_process, actions=['age'], enforce_detection=False, detector_backend='opencv')
                 if isinstance(analysis, list) and len(analysis) > 0:
                     self.current_age = str(analysis[0]['age'])
                 elif isinstance(analysis, dict):
