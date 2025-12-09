@@ -35,16 +35,15 @@ public:
 
         // --- テンプレート定義 (省略なし) ---
         templates_ = {
-            {"Basic", 1, WIDTH *0.5, 0.0f, 0.0f, 0.0f, 10, 10},
-            {"Basic Left", 1, WIDTH *0.5, 0.0f, 0.0f, -15.0f, 10, 10},
-            {"Basic Right", 1, WIDTH *0.5, 0.0f, 0.0f, 15.0f, 10, 10},
-            {"Normal Center",  2, WIDTH *0.5, 0.0f, -10.0f, 0.0f, 20, 20},
-            {"Wide Left",      2,  WIDTH *0.3, 0.0f, 0.0f, 45.0f, 50, 50},
-            {"Wide Right",     2, WIDTH *0.7, 0.0f, 0.0f, -45.0f, 50, 50},
-            {"Pro Smash",      3, WIDTH *0.5, 0.0f, -20.0f, 0.0f, 90, 90},
-            {"Crazy Curve",    3,  WIDTH *0.1, 0.0f, -5.0f, 25.0f, 80, 30},
-            {"Net Edge",       3, WIDTH *0.9, 0.0f, 0.0f, 0.0f, 15, 15},
-            {"Impossible Shot", 4, WIDTH *0.1, 0.0f, 0.0f, 45.0f, -50, 100},
+            {"Basic", 1, WIDTH *0.5, 0.0f, 0.0f, 0.0f, 5, 5},
+            {"Basic Left", 1, WIDTH *0.5, 0.0f, 0.0f, -30.0f, 6, 6},
+            {"Basic Right", 1, WIDTH *0.5, 0.0f, 0.0f, 30.0f, 6, 6},
+            {"Normal Center",  2, WIDTH *0.5, 0.0f, -10.0f, 0.0f, 10, 10},
+            {"Wide Left",      2,  WIDTH *0.3, 0.0f, 0.0f, 45.0f, 12, 12},
+            {"Wide Right",     2, WIDTH *0.7, 0.0f, 0.0f, -45.0f, 12, 12},
+            {"Pro Smash",      3, WIDTH *0.5, 0.0f, -20.0f, 0.0f, 20, 20},
+            {"Crazy Curve",    3,  WIDTH *0.1, 0.0f, -5.0f, 25.0f, 10, -10},
+            {"Impossible Shot", 4, WIDTH *0.1, 0.0f, 0.0f, 45.0f, 30, -20},
         };
 
         std::random_device seed_gen;
