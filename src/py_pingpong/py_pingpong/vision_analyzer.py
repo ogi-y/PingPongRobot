@@ -22,6 +22,10 @@ class VisionAnalyzer(Node):
             self.source = int(source_param)
         else:
             self.source = source_param
+        
+        # ラケットを持つ手
+        self.declare_parameter('hand', 'right')
+        self.hand_side = self.get_parameter('hand').get_parameter_value().string_value
 
         # --- カメラ初期化 ---
         self.get_logger().info(f"Opening camera source: {self.source}")
@@ -101,13 +105,35 @@ class VisionAnalyzer(Node):
             keypoints = results[0].keypoints.data.cpu().numpy()
             for i, person_kpts in enumerate(keypoints):
                 if len(person_kpts) > 0:
-                    nose_x = person_kpts[0][0]
-                    nose_y = person_kpts[0][1]
-                    conf = person_kpts[0][2]
+                    
+                    # 鼻の座標（予備用）
+                    nose_x, nose_y, nose_conf = person_kpts[0]
+
+                    # 指定された手首の座標を取得
+                    if self.hand_side == 'left':
+                        hand_x, hand_y, hand_conf = person_kpts[9]  # 左手首
+                    else:
+                        hand_x, hand_y, hand_conf = person_kpts[10] # 右手首
+
+                    # --- ロジック: 手が見えていれば手、見えなければ鼻を使う ---
+                    if hand_conf > 0.5:
+                        final_x, final_y = hand_x, hand_y
+                        body_part = "Hand"
+                    else:
+                        final_x, final_y = nose_x, nose_y
+                        body_part = "Nose (Fallback)"
+
                     detected_people.append({
-                        "id": i, "pos_x": float(nose_x), "pos_y": float(nose_y),
-                        "pose_detected": True if conf > 0.5 else False
+                        "id": i, 
+                        "pos_x": float(final_x), 
+                        "pos_y": float(final_y),
+                        "part_used": body_part, # デバッグ用に何を使ったか記録
+                        "pose_detected": True
                     })
+                    
+                    # 画面にも描画（赤い丸を手首に描く）
+                    if hand_conf > 0.5:
+                        cv2.circle(annotated_frame, (int(hand_x), int(hand_y)), 10, (0, 0, 255), -1)
 
         # 年齢描画
         cv2.putText(annotated_frame, f"Age: {self.current_age}", (30, 50), 
