@@ -78,10 +78,11 @@ class StrategyServer(Node):
         roll = 0.0
         
         # 年齢によるレベル分け (0:手加減 ~ 3:本気)
-        level = 2
+        level = 1
         if age < 10: level = 0
-        elif age < 65: level = 3 # 現役世代には容赦しない
-        else: level = 1
+        elif age < 30: level = 1
+        elif age < 40: level = 2
+        else: level = 3
 
         # プレイヤー位置によるコース打ち分け (逆を突く)
         img_center = CAMERA_WIDTH / 2
@@ -94,10 +95,6 @@ class StrategyServer(Node):
         else:
             # プレイヤーの位置に応じて逆を狙う
             if player_x_img < img_center: 
-                # 敵は左(ロボットから見て右)にいる -> 左(ロボットから見て左)を狙う
-                # ※Vision座標系とロボット座標系の左右関係に注意
-                #  Vision: 左(x小) -> ロボット視点: 右(x小) と仮定
-                #  ロボット座標系: 0が右端、1525が左端なら:
                 target_x = self.coord_r # 空いている右側を狙う
                 spin_direction = 1      # 右回転で逃がす
             else:
@@ -119,21 +116,21 @@ class StrategyServer(Node):
             if shot_type < 0.3 and level >= 2:
                 # ドロップショット (手前・遅く・下回転)
                 target_y = self.coord_short
-                speed = 60
-                spin = -10 # バックスピン
+                speed = 30
+                spin = 20
             else:
                 # ドライブ/スマッシュ (奥・速く・横回転)
                 target_y = self.coord_deep
                 
                 # レベルが高いほど速く、カーブがきつい
                 if level >= 3:
-                    speed = 140
+                    speed = 50
                     spin = 30 * spin_direction
                 elif level == 2:
-                    speed = 100
+                    speed = 30
                     spin = 15 * spin_direction
                 else: # level 0, 1
-                    speed = 70
+                    speed = 10
                     spin = 0
 
         # --- 3. 軌道計算機への指令送信 ---
@@ -145,7 +142,7 @@ class StrategyServer(Node):
         req.height_z = 0.0
         req.roll_deg = float(roll)
         req.spin = int(spin)
-        req.speed = int(speed) # ← int型のspeedに変更済み
+        req.speed = int(speed)
 
         future = self.client.call_async(req)
 
