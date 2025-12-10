@@ -223,8 +223,8 @@ class PingPongGUI(QWidget):
         layout.addLayout(self.semi_spin)
 
         # --- 【変更点】スピード設定をスライダーに ---
-        # 合計値なので 0 ～ 200 (片側最大100なので)
-        self.semi_speed, _ = self.create_slider("Total Speed (L+R)", 0, 200, 120)
+        # 合計値なので 0 ～ 200  合計50ぐらいで十分早い 100以上は危険
+        self.semi_speed, _ = self.create_slider("Total Speed (L+R)", 0, 100, 15)
         layout.addLayout(self.semi_speed)
         # ----------------------------------------
 
