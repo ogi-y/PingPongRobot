@@ -217,16 +217,16 @@ class PingPongGUI(QWidget):
         layout.addLayout(self.semi_y)
         self.semi_roll, _ = self.create_slider("Head Roll (deg)", -45, 45, 0)
         layout.addLayout(self.semi_roll)
-        self.semi_spin, _ = self.create_slider("Spin Power (-50~50)", -50, 50, 0)
+        
+        # スピン量
+        self.semi_spin, _ = self.create_slider("Spin Power (Diff)", -50, 50, 0)
         layout.addLayout(self.semi_spin)
 
-        layout_spd = QHBoxLayout()
-        layout_spd.addWidget(QLabel("Speed Mode:"))
-        self.semi_speed = QComboBox()
-        self.semi_speed.addItems(["slow", "normal", "fast"])
-        self.semi_speed.setCurrentIndex(1)
-        layout_spd.addWidget(self.semi_speed)
-        layout.addLayout(layout_spd)
+        # --- 【変更点】スピード設定をスライダーに ---
+        # 合計値なので 0 ～ 200 (片側最大100なので)
+        self.semi_speed, _ = self.create_slider("Total Speed (L+R)", 0, 200, 120)
+        layout.addLayout(self.semi_speed)
+        # ----------------------------------------
 
         btn_fire = QPushButton("FIRE TARGET SHOT")
         btn_fire.setFixedHeight(60)
@@ -243,8 +243,11 @@ class PingPongGUI(QWidget):
         y = float(self.semi_y.itemAt(1).widget().value())
         roll = float(self.semi_roll.itemAt(1).widget().value())
         spin = int(self.semi_spin.itemAt(1).widget().value())
-        speed = self.semi_speed.currentText()
-        self.label_status.setText(f"Status: Semi-Auto -> ({x:.0f}, {y:.0f})")
+        
+        # --- 【変更点】値をintで取得 ---
+        speed = int(self.semi_speed.itemAt(1).widget().value())
+        
+        self.label_status.setText(f"Status: Semi-Auto -> ({x:.0f}, {y:.0f}) Spd:{speed}")
         self.node.send_target_shot(x, y, roll, spin, speed)
 
     # FULL MANUAL モード
@@ -354,7 +357,7 @@ class RosGuiNode(Node):
         req.height_z = 0.0
         req.roll_deg = float(roll)
         req.spin = int(spin)
-        req.speed_mode = speed
+        req.speed = int(speed)
         self.client_shot.call_async(req)
 
     def send_raw_command(self, msg):

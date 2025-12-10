@@ -1,17 +1,31 @@
 #include <chrono>
 #include <memory>
 #include <cmath>
-#include <string>
+#include <vector>
+#include <algorithm>
 #include <iostream>
 
 #include "rclcpp/rclcpp.hpp"
 #include "pingpong_msgs/msg/shot_params.hpp"
 #include "pingpong_msgs/srv/target_shot.hpp"
 
-// 定数
-constexpr float GRAVITY = 9.81f;
+// --- 物理定数 ---
+constexpr double G = 9.80665;
+constexpr double RHO = 1.204;
+constexpr double MASS = 0.0027;
+constexpr double RADIUS = 0.020;
+constexpr double AREA = M_PI * RADIUS * RADIUS;
+constexpr double Cd = 0.5;
+constexpr double Cm = 0.25;
 
 using namespace std::chrono_literals;
+
+struct Vector3 {
+    double x, y, z;
+    Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
+    Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+    Vector3 operator*(double s) const { return {x * s, y * s, z * s}; }
+};
 
 class BallisticsNode : public rclcpp::Node
 {
@@ -22,98 +36,154 @@ public:
         this->declare_parameter("robot.x_position", 762.5);
         this->declare_parameter("robot.y_position", 0.0);
 
-        // モータ指令を送るPublisher
         shot_pub_ = this->create_publisher<pingpong_msgs::msg::ShotParams>("shot_command", 10);
 
-        // 戦略から指令を受けるService
         service_ = this->create_service<pingpong_msgs::srv::TargetShot>(
             "target_shot", 
             std::bind(&BallisticsNode::solve_trajectory, this, std::placeholders::_1, std::placeholders::_2));
         
-        RCLCPP_INFO(this->get_logger(), "Ballistics Calculator Ready. Send target coordinates!");
+        RCLCPP_INFO(this->get_logger(), "Physics Engine Ready.");
     }
 
 private:
-    void solve_trajectory(
+    double power_to_v0(double avg_power) {
+        return 2.0 + (std::abs(avg_power) / 100.0) * 23.0; 
+    }
+
+    double spin_to_omega(double spin_val) {
+        return (spin_val / 100.0) * 300.0;
+    }
+
+    // --- 弾道シミュレーション ---
+    Vector3 simulate_shot(double v0, double pitch_deg, double yaw_deg, double omega, double roll_deg) {
+        double dt = 0.0001; 
+        
+        double pitch_rad = pitch_deg * M_PI / 180.0;
+        double yaw_rad = yaw_deg * M_PI / 180.0;
+        
+        // 【警告対策】Roll角度を使って回転軸を傾ける
+        // Rollがプラス(右傾き)だと、サイドスピン(Z軸)の成分の一部が下回転/上回転(Y軸/X軸)に分散する
+        // ここでは簡易的に Z軸回転成分 を調整する係数として使う
+        double roll_rad = roll_deg * M_PI / 180.0;
+
+        Vector3 v = {
+            v0 * std::cos(pitch_rad) * std::sin(yaw_rad),
+            v0 * std::cos(pitch_rad) * std::cos(yaw_rad),
+            v0 * std::sin(pitch_rad)
+        };
+
+        // 回転軸: 基本はZ軸(サイドスピン)だが、Rollによって傾く
+        // 単純化: cos(roll)分だけカーブ力が残ると仮定
+        Vector3 w = { 
+            -std::sin(roll_rad) * omega, // 傾きによって少し縦回転成分が混ざる
+            0.0, 
+            std::cos(roll_rad) * omega   // メインのカーブ成分
+        }; 
+
+        Vector3 p = {0.0, 0.0, 0.3};
+        double t = 0.0;
+
+        while (p.z > 0.0 && t < 3.0) {
+            double vel = std::sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+            
+            double Fd = 0.5 * Cd * RHO * AREA * vel * vel;
+            Vector3 a_drag = v * (-1.0 * Fd / (MASS * vel));
+
+            Vector3 cross = {
+                w.y*v.z - w.z*v.y,
+                w.z*v.x - w.x*v.z,
+                w.x*v.y - w.y*v.x
+            };
+            double S = 0.5 * Cm * RHO * AREA * RADIUS; 
+            Vector3 a_mag = cross * (S / MASS);
+
+            Vector3 a_grav = {0.0, 0.0, -G};
+
+            Vector3 a_total = a_drag + a_mag + a_grav;
+            v = v + a_total * dt;
+            p = p + v * dt;
+            t += dt;
+        }
+        return p;
+    }
+
+    // --- グリッド探索 ---
+    bool solve_angles(double target_rel_x, double target_rel_y, double v0, double omega, double roll,
+                      double& best_pitch, double& best_yaw) 
+    {
+        double min_dist_sq = 1000000.0;
+        
+        for (double p = -10.0; p <= 45.0; p += 1.0) {
+            for (double y = -30.0; y <= 30.0; y += 1.0) {
+                
+                Vector3 land_pos = simulate_shot(v0, p, y, omega, roll);
+                
+                double dx = land_pos.x - target_rel_x;
+                double dy = land_pos.y - target_rel_y;
+                double dist_sq = dx*dx + dy*dy;
+
+                if (dist_sq < min_dist_sq) {
+                    min_dist_sq = dist_sq;
+                    best_pitch = p;
+                    best_yaw = y;
+                }
+            }
+        }
+        return (min_dist_sq < 1.0); 
+    }
+
+void solve_trajectory(
         const std::shared_ptr<pingpong_msgs::srv::TargetShot::Request> request,
         std::shared_ptr<pingpong_msgs::srv::TargetShot::Response> response)
     {
         float robot_x = this->get_parameter("robot.x_position").as_double();
         float robot_y = this->get_parameter("robot.y_position").as_double();
 
-        // 1. 目標との相対距離を計算
-        float dx = request->target_x - robot_x;
-        float dy = request->target_y - robot_y;
-        float dist_xy = std::sqrt(dx*dx + dy*dy); // 平面距離
-
-        // 2. Yaw (左右角度) の計算
-        // atan2(x, y) で角度が出ます。正面Y軸基準なら atan2(dx, dy) 
-        // ※ロボットの座標系定義によりますが、ここでは正面0度、左プラスと仮定
-        float yaw_rad = std::atan2(-dx, dy); // 座標系に合わせて符号調整
-        float yaw_deg = yaw_rad * 180.0f / M_PI;
-
-        // 3. Pitch (上下角度) と Power の計算
-        // 本来は物理方程式を解きますが、ここでは簡易的な「距離→パワー変換モデル」を使います
+        double target_rel_x = (request->target_x - robot_x) / 1000.0;
+        double target_rel_y = (request->target_y - robot_y) / 1000.0;
         
-        float pitch_deg = 0.0f;
-        float base_power = 0.0f;
+        double total_speed = (double)request->speed;
+        double base_power = total_speed / 2.0;
 
-        // スピードモードによる打ち分け
-        // if (request->speed_mode == "fast") {
-        //     // 直線的な軌道 (低弾道・高パワー)
-        //     pitch_deg = -40.0f; 
-        //     base_power = 30.0f + (dist_xy / 2000.0f) * 30.0f;
+        double spin_val = (double)request->spin;
+        double power_L = base_power + spin_val;
+        double power_R = base_power - spin_val;
         
-        // } else if (request->speed_mode == "slow") {
-        //     // 山なり軌道 (高弾道・低パワー)
-        //     pitch_deg = -10.0f; 
-        //     base_power = 20.0f + (dist_xy / 2000.0f) * 10.0f;
+        // 物理パラメータ変換
+        double v0 = power_to_v0((power_L + power_R) / 2.0);
+        double omega = spin_to_omega(power_L - power_R);
+        double roll = request->roll_deg;
+
+        // 計算実行
+        double best_pitch = 0.0;
+        double best_yaw = 0.0;
         
-        // } else { // normal
-        //     pitch_deg = -20.0f;
-        //     base_power = 25.0f + (dist_xy / 2000.0f) * 20.0f;
-        // }
+        bool found = solve_angles(target_rel_x, target_rel_y, v0, omega, roll, best_pitch, best_yaw);
 
-        // 奥行きで打ち分け
-        if (dist_xy < 1000.0f) {
-            base_power = 10;
-            pitch_deg = -20.0f; 
-        } else if (dist_xy < 3000.0f) {
-            base_power = 20;
-            pitch_deg = -15.0f;
-        }
-        else {
-            base_power = 30;
-            pitch_deg = -10.0f;
-        }
-
-        // 4. モータ左右差の計算 (カーブさせたい場合など)
-        
-        int power_L = static_cast<int>(base_power) + request->spin;
-        int power_R = static_cast<int>(base_power) - request->spin;
-
-        // クリップ処理 (-100~100)
-        power_L = std::max(-100, std::min(100, power_L));
-        power_R = std::max(-100, std::min(100, power_R));
-
-        // 5. メッセージ作成と送信
+        // 送信
         auto msg = pingpong_msgs::msg::ShotParams();
         msg.pos = robot_x;
-        msg.roll_deg = request->roll;
-        msg.pitch_deg = pitch_deg;
-        msg.yaw_deg = yaw_deg;
-        msg.pow_left = power_L;
-        msg.pow_right = power_R;
+        msg.roll_deg = roll;
+        msg.pitch_deg = best_pitch;
+        msg.yaw_deg = best_yaw; 
+        msg.pow_left = (int)power_L;
+        msg.pow_right = (int)power_R;
 
         shot_pub_->publish(msg);
 
-        // ログとレスポンス
-        RCLCPP_INFO(this->get_logger(), 
-            "Solved: Tgt(%.0f, %.0f) -> Roll: %.1f, Yaw: %.1f, Pitch: %.1f, PowL: %d, PowR: %d",
-            request->target_x, request->target_y, request->roll, yaw_deg, pitch_deg, power_L, power_R);
-
-        response->success = true;
-        response->message = "Fired";
+        // ログ
+        if (found) {
+            RCLCPP_INFO(this->get_logger(), 
+                "SUCCESS: Speed=%d(L%d/R%d) -> Pitch=%.1f, Yaw=%.1f",
+                (int)total_speed, (int)power_L, (int)power_R, best_pitch, best_yaw);
+            response->success = true;
+            response->message = "Calculated optimal trajectory";
+        } else {
+            RCLCPP_WARN(this->get_logger(), 
+                "UNREACHABLE: Power %d is too weak/strong for dist %.1fm", (int)total_speed, target_rel_y);
+            response->success = false;
+            response->message = "Target Unreachable";
+        }
     }
 
     rclcpp::Publisher<pingpong_msgs::msg::ShotParams>::SharedPtr shot_pub_;
