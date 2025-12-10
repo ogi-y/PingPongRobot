@@ -3,47 +3,36 @@ import rclpy
 from rclpy.node import Node
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QSlider, QComboBox, QGroupBox, 
-                             QTabWidget, QSpinBox, QCheckBox)
+                             QTabWidget, QSpinBox, QCheckBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, QTimer
 import random
-
-# ROSメッセージ/サービスのインポート
-from pingpong_msgs.srv import TargetShot # セミオート用 (座標指定)
-from pingpong_msgs.srv import Shoot      # ★追加: テンプレート用 (難易度指定)
-from pingpong_msgs.msg import ShotParams # フルマニュアル用
+from pingpong_msgs.srv import TargetShot
+from pingpong_msgs.srv import Shoot
+from pingpong_msgs.msg import ShotParams
 from std_msgs.msg import Bool
+from rcl_interfaces.srv import SetParameters
+from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
 
 class PingPongGUI(QWidget):
     def __init__(self, ros_node):
         super().__init__()
         self.node = ros_node
-        
-        # Strategy AI用タイマー
         self.auto_timer = QTimer()
         self.auto_timer.timeout.connect(self.send_auto_trigger)
-        
-        # Template連射用タイマー
         self.template_timer = QTimer()
         self.template_timer.timeout.connect(self.fire_template_service)
-        
         self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle('Ping Pong Robot Commander')
         self.setGeometry(100, 100, 650, 750)
-        
         main_layout = QVBoxLayout()
-        
-        # --- タブウィジェットの作成 ---
         tabs = QTabWidget()
-        tabs.addTab(self.create_auto_tab(), "AUTO (Strategy)")      # カメラ戦略
-        tabs.addTab(self.create_template_tab(), "AUTO (Template)")  # ★これ: 難易度指定
-        tabs.addTab(self.create_semiauto_tab(), "SEMI-AUTO (Target)") # 座標指定
-        tabs.addTab(self.create_manual_tab(), "FULL MANUAL (Motors)") # 直接制御
-        
+        tabs.addTab(self.create_auto_tab(), "AUTO (Strategy)")
+        tabs.addTab(self.create_template_tab(), "AUTO (Template)")
+        tabs.addTab(self.create_semiauto_tab(), "SEMI-AUTO (Target)")
+        tabs.addTab(self.create_manual_tab(), "FULL MANUAL (Motors)")
         main_layout.addWidget(tabs)
-
-        # --- 共通ステータスバー ---
         self.label_status = QLabel("Status: Ready")
         self.label_status.setAlignment(Qt.AlignCenter)
         self.label_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #333; padding: 10px;")
@@ -51,9 +40,7 @@ class PingPongGUI(QWidget):
 
         self.setLayout(main_layout)
 
-    # ----------------------------------------------------------------
-    # 1. AUTO (Strategy) モード
-    # ----------------------------------------------------------------
+    # AUTO (Strategy) モード
     def create_auto_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
@@ -62,6 +49,23 @@ class PingPongGUI(QWidget):
         lbl.setStyleSheet("font-weight: bold; color: #4CAF50;")
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
+
+        group_hand = QGroupBox("Target Player Hand Setting")
+        layout_hand = QHBoxLayout()
+        
+        self.rb_right = QRadioButton("Right Hand (Standard)")
+        self.rb_left = QRadioButton("Left Hand")
+        self.rb_right.setChecked(True)
+
+        self.bg_hand = QButtonGroup()
+        self.bg_hand.addButton(self.rb_right, 0)
+        self.bg_hand.addButton(self.rb_left, 1)
+        self.bg_hand.buttonClicked.connect(self.update_hand_setting)
+
+        layout_hand.addWidget(self.rb_right)
+        layout_hand.addWidget(self.rb_left)
+        group_hand.setLayout(layout_hand)
+        layout.addWidget(group_hand)
 
         # 間隔設定
         group_interval = QGroupBox("Firing Interval")
@@ -86,6 +90,15 @@ class PingPongGUI(QWidget):
         tab.setLayout(layout)
         return tab
 
+    def update_hand_setting(self):
+        if self.rb_right.isChecked():
+            hand = "right"
+        else:
+            hand = "left"
+        
+        self.label_status.setText(f"Status: Setting hand to {hand.upper()}...")
+        self.node.set_vision_hand_param(hand)
+
     def toggle_auto_fire(self):
         if self.btn_auto_toggle.isChecked():
             interval_ms = self.spin_interval.value() * 1000
@@ -102,9 +115,7 @@ class PingPongGUI(QWidget):
     def send_auto_trigger(self):
         self.node.publish_trigger()
 
-    # ----------------------------------------------------------------
-    # ★ 2. AUTO (Template) モード - Controller内蔵テンプレート呼び出し
-    # ----------------------------------------------------------------
+    # AUTO (Template) モード
     def create_template_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
@@ -114,17 +125,14 @@ class PingPongGUI(QWidget):
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
 
-        # 難易度選択 (チェックボックスに変更)
+        # 難易度選択
         group_level = QGroupBox("Difficulty Levels (Mixable)")
         layout_level = QHBoxLayout()
         
-        # IDはController側の定義に合わせる (1:Easy, 2:Normal, 3:Hard, 4:Pro)
         self.chk_lv1 = QCheckBox("Lv1: Easy")
         self.chk_lv2 = QCheckBox("Lv2: Normal")
         self.chk_lv3 = QCheckBox("Lv3: Hard")
         self.chk_lv4 = QCheckBox("Lv4: Pro")
-        
-        # デフォルトでNormalをONにしておく
         self.chk_lv2.setChecked(True)
 
         layout_level.addWidget(self.chk_lv1)
@@ -164,7 +172,6 @@ class PingPongGUI(QWidget):
 
     def toggle_template_fire(self):
         if self.btn_tmpl_toggle.isChecked():
-            # チェックが一つもない場合のガード
             if not any([self.chk_lv1.isChecked(), self.chk_lv2.isChecked(), 
                         self.chk_lv3.isChecked(), self.chk_lv4.isChecked()]):
                 self.label_status.setText("Status: Error! Select at least one level.")
@@ -183,8 +190,6 @@ class PingPongGUI(QWidget):
             self.label_status.setText("Status: Template Stopped.")
 
     def fire_template_service(self):
-        """Shootサービスを呼び出す"""
-        # 1. チェックされている難易度をリストアップ
         active_levels = []
         if self.chk_lv1.isChecked(): active_levels.append(1)
         if self.chk_lv2.isChecked(): active_levels.append(2)
@@ -195,23 +200,17 @@ class PingPongGUI(QWidget):
             self.label_status.setText("Status: No level selected!")
             return
 
-        # 2. その中からランダムに1つ選ぶ
         selected_difficulty = random.choice(active_levels)
-        
         self.label_status.setText(f"Status: Calling /shoot (Diff:{selected_difficulty})")
         self.node.send_shoot_template(selected_difficulty)
 
-    # ----------------------------------------------------------------
-    # 3. SEMI-AUTO モード (座標指定)
-    # ----------------------------------------------------------------
+    # SEMI-AUTO モード
     def create_semiauto_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
-        
         lbl = QLabel("Target Mode: Specify coordinates manually.")
         layout.addWidget(lbl)
 
-        # スライダー群 (省略せず記述)
         self.semi_x, _ = self.create_slider("Target X (Width)", 0, 1525, 762)
         layout.addLayout(self.semi_x)
         self.semi_y, _ = self.create_slider("Target Y (Depth)", 0, 2740, 2200)
@@ -248,9 +247,7 @@ class PingPongGUI(QWidget):
         self.label_status.setText(f"Status: Semi-Auto -> ({x:.0f}, {y:.0f})")
         self.node.send_target_shot(x, y, roll, spin, speed)
 
-    # ----------------------------------------------------------------
-    # 4. FULL MANUAL モード
-    # ----------------------------------------------------------------
+    # FULL MANUAL モード
     def create_manual_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
@@ -308,17 +305,29 @@ class RosGuiNode(Node):
     def __init__(self):
         super().__init__('gui_controller')
         
-        # 1. AIトリガー用 (Auto Strategy)
         self.pub_trigger = self.create_publisher(Bool, '/serve_trigger', 10)
-        
-        # 2. テンプレート呼び出し用 (Auto Template) ★追加
         self.client_shoot_template = self.create_client(Shoot, 'shoot')
-        
-        # 3. 軌道計算機用 (Semi-Auto)
         self.client_shot = self.create_client(TargetShot, 'target_shot')
-        
-        # 4. 直接制御用 (Full Manual)
         self.pub_raw = self.create_publisher(ShotParams, 'shot_command', 10)
+        self.client_set_vision_param = self.create_client(SetParameters, '/vision_analyzer/set_parameters')
+
+    # パラメータ設定送信
+    def set_vision_hand_param(self, hand_value):
+        if not self.client_set_vision_param.service_is_ready():
+            self.get_logger().warn("Vision Analyzer param service not ready. Is the node running?")
+            return
+
+        req = SetParameters.Request()
+        
+        # パラメータオブジェクトの作成
+        param = Parameter()
+        param.name = "hand"  # VisionAnalyzer側で declare_parameter した名前
+        param.value = ParameterValue(type=ParameterType.PARAMETER_STRING, string_value=hand_value)
+        
+        req.parameters = [param]
+        
+        future = self.client_set_vision_param.call_async(req)
+        future.add_done_callback(lambda f: self.get_logger().info(f"Hand param updated to: {hand_value}"))
 
     def publish_trigger(self):
         msg = Bool()
@@ -326,20 +335,16 @@ class RosGuiNode(Node):
         self.pub_trigger.publish(msg)
 
     def send_shoot_template(self, difficulty):
-        """ /shoot サービスを呼び出す (テンプレート) """
         if not self.client_shoot_template.service_is_ready():
             self.get_logger().warn("Service '/shoot' not ready!")
             return
         
         req = Shoot.Request()
         req.difficulty = int(difficulty)
-        # テンプレートモードなので、difficulty>0のみを使用し、他の座標は無視される前提
-        
         future = self.client_shoot_template.call_async(req)
         future.add_done_callback(lambda f: self.get_logger().info("Template shot called"))
 
     def send_target_shot(self, x, y, roll, spin, speed):
-        """ /target_shot サービスを呼び出す (座標指定) """
         if not self.client_shot.service_is_ready():
             self.get_logger().warn("Service '/target_shot' not ready!")
             return
@@ -353,7 +358,6 @@ class RosGuiNode(Node):
         self.client_shot.call_async(req)
 
     def send_raw_command(self, msg):
-        """ 直接Topic送信 """
         self.pub_raw.publish(msg)
 
 def main(args=None):
