@@ -73,7 +73,7 @@ class StrategyServer(Node):
         # デフォルト値
         target_x = self.coord_c
         target_y = self.coord_mid
-        speed = 100       # 標準パワー
+        speed = 15       # 標準パワー
         spin = 0
         roll = 0.0
         
