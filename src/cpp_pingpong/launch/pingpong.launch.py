@@ -4,7 +4,6 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.substitutions import PythonExpression
 
 def generate_launch_description():
     # 設定ファイルのパスを取得
@@ -14,10 +13,11 @@ def generate_launch_description():
         'params.yaml'
     )
 
-    camera_source_arg = DeclareLaunchArgument( # 数字を入れるときはシングルクォーテーションとダブルクォーテーションでかこんで"''"
+    # カメラソース指定引数
+    camera_source_arg = DeclareLaunchArgument(
         'source',          # 実行時に指定する名前
-        default_value='0',        # 何も指定しなかった場合の値
-        description='Camera device ID or Video URL for vision_analyzer'
+        default_value='0', # 指定なしの場合の値
+        description='Camera device ID or Video URL for vision_main'
     )
 
     source_config = LaunchConfiguration('source')
@@ -25,33 +25,50 @@ def generate_launch_description():
     return LaunchDescription([
         camera_source_arg,
 
-        # C++ 軌道計算ノード
+        # 1. C++ 軌道計算ノード
         Node(
             package='cpp_pingpong',
             executable='ballistics',
             name='ballistics',
-            parameters=[config]
+            parameters=[config],
+            output='screen'
         ),
-        # Python 戦略ノード
+        
+        # 2. Python 戦略ノード
         Node(
             package='py_pingpong',
             executable='strategy_server',
             name='strategy_server',
-            parameters=[config]
+            parameters=[config],
+            output='screen'
         ),
-        # Python 視覚ノード (Vision)
+        
+        # 3. Python 視覚ノード (メイン: YOLO/カメラ)
+        # ※ここに source パラメータを渡します
         Node(
             package='py_pingpong',
-            executable='analyzer',
-            name='vision_analyzer',
+            executable='vision_main',
+            name='vision_main',
             parameters=[{
                 'source': source_config
-            }]
+            }],
+            output='screen'
         ),
-        # C++ コントローラ
+
+        # 4. Python 視覚ノード (サブ: 年齢推定)
+        # ※独立して起動させます
+        Node(
+            package='py_pingpong',
+            executable='vision_age',
+            name='vision_age',
+            output='screen'
+        ),
+
+        # 5. C++ コントローラ
         Node(
             package='cpp_pingpong',
             executable='controller',
-            name='controller'
+            name='controller',
+            output='screen'
         )
     ])

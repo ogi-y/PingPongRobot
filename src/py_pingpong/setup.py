@@ -27,6 +27,8 @@ setup(
             'analyzer = py_pingpong.vision_analyzer:main',
             'strategy_server = py_pingpong.strategy_server:main',
             'gui_controller = py_pingpong.gui_controller:main',
+            'vision_main = py_pingpong.vision_main:main',
+            'vision_age = py_pingpong.vision_age:main',
         ],
     },
 )
