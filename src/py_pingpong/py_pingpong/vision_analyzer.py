@@ -42,7 +42,7 @@ class VisionAnalyzer(Node):
         self.lock = threading.Lock()   # 排他制御
         self.running = True            # スレッド制御用フラグ
         
-        self.current_age = "Estimating..."
+        self.current_age = "Estimating"
         self.frame_count = 0
 
         # --- モデル読み込み ---

@@ -62,7 +62,9 @@ class StrategyServer(Node):
         age = 30
         
         if self.latest_vision_data:
-            age = int(self.latest_vision_data.get("age", 30))
+            age = self.latest_vision_data.get("age", 30)
+            if age == "Estimating":
+                age = 10
             people = self.latest_vision_data.get("people", [])
             # 最も信頼度の高い人を探す（単純にリスト先頭でもOK）
             if people:
