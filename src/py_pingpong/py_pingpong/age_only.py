@@ -81,9 +81,7 @@ class AgeEstimatorNode(Node):
             analysis = DeepFace.analyze(
                 img_path=self.latest_frame, 
                 actions=['age'], 
-                enforce_detection=False, 
-                detector_backend='opencv', # 軽量なバックエンドを指定
-                silent=True
+                enforce_detection=False,
             )
 
             # 結果の取り出し（リストまたは辞書形式に対応）
