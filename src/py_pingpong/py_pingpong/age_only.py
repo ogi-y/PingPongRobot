@@ -40,7 +40,7 @@ class AgeEstimatorNode(Node):
 
         # Publisher
         self.pub_image = self.create_publisher(Image, '/camera/image_raw', 10)
-        self.pub_age = self.create_publisher(String, '/vision/age_data', 10)
+        self.pub_age = self.create_publisher(String, '/vision/age_result', 10)
 
         # --- タイマー設定 ---
         # 1. 映像表示・配信用（高速: 30fps）
