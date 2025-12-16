@@ -1,4 +1,3 @@
-# vision_age_node.py
 import os
 # GPUを無効化してCPUのみで動作させる設定（DeepFace読み込み前に記述必須）
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
