@@ -29,6 +29,7 @@ setup(
             'gui_controller = py_pingpong.gui_controller:main',
             'vision_main = py_pingpong.vision_main:main',
             'vision_age = py_pingpong.vision_age:main',
+            'age_only = py_pingpong.age_only:main',
         ],
     },
 )
