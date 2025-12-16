@@ -51,14 +51,11 @@ class VisionAgeNode(Node):
             
             # --- DeepFace実行 (重い処理) ---
             age_str = "0"
-            try:
-                analysis = DeepFace.analyze(cv_image, actions=['age'], enforce_detection=False)
-                if isinstance(analysis, list) and len(analysis) > 0:
-                    age_str = str(analysis[0]['age'])
-                elif isinstance(analysis, dict):
-                    age_str = str(analysis['age'])
-            except Exception:
-                pass
+            analysis = DeepFace.analyze(cv_image, actions=['age'], enforce_detection=False)
+            if isinstance(analysis, list) and len(analysis) > 0:
+                age_str = str(analysis[0]['age'])
+            elif isinstance(analysis, dict):
+                age_str = str(analysis['age'])
             
             # 結果をPublish
             res_msg = String()
