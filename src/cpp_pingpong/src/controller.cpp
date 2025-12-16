@@ -33,7 +33,7 @@ public:
     {
         publisher_ = this->create_publisher<pingpong_msgs::msg::ShotParams>("shot_command", 10);
 
-        // --- テンプレート定義 (省略なし) ---
+        // テンプレート定義
         templates_ = {
             {"Basic", 1, WIDTH *0.5, 0.0f, 0.0f, 0.0f, 5, 5},
             {"Basic Left", 1, WIDTH *0.5, 0.0f, 0.0f, -30.0f, 6, 6},
@@ -49,8 +49,6 @@ public:
         std::random_device seed_gen;
         engine_ = std::mt19937(seed_gen());
 
-        // ★変更: サービス型を Trigger から Shoot に変更
-        // サービス名: "shoot"
         service_ = this->create_service<pingpong_msgs::srv::Shoot>(
             "shoot", 
             std::bind(&ShotController::shoot_callback, this, std::placeholders::_1, std::placeholders::_2));
@@ -59,7 +57,6 @@ public:
     }
 
 private:
-    // ★変更: コールバック関数
     void shoot_callback(
         const std::shared_ptr<pingpong_msgs::srv::Shoot::Request> request,
         std::shared_ptr<pingpong_msgs::srv::Shoot::Response> response)

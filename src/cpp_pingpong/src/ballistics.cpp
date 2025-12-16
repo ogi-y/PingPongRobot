@@ -60,10 +60,6 @@ private:
         
         double pitch_rad = pitch_deg * M_PI / 180.0;
         double yaw_rad = yaw_deg * M_PI / 180.0;
-        
-        // 【警告対策】Roll角度を使って回転軸を傾ける
-        // Rollがプラス(右傾き)だと、サイドスピン(Z軸)の成分の一部が下回転/上回転(Y軸/X軸)に分散する
-        // ここでは簡易的に Z軸回転成分 を調整する係数として使う
         double roll_rad = roll_deg * M_PI / 180.0;
 
         Vector3 v = {
@@ -72,12 +68,10 @@ private:
             v0 * std::sin(pitch_rad)
         };
 
-        // 回転軸: 基本はZ軸(サイドスピン)だが、Rollによって傾く
-        // 単純化: cos(roll)分だけカーブ力が残ると仮定
         Vector3 w = { 
-            -std::sin(roll_rad) * omega, // 傾きによって少し縦回転成分が混ざる
+            -std::sin(roll_rad) * omega,
             0.0, 
-            std::cos(roll_rad) * omega   // メインのカーブ成分
+            std::cos(roll_rad) * omega
         }; 
 
         Vector3 p = {0.0, 0.0, 0.3};
@@ -107,7 +101,7 @@ private:
         return p;
     }
 
-    // --- グリッド探索 ---
+    // グリッド探索
     bool solve_angles(double target_rel_x, double target_rel_y, double v0, double omega, double roll,
                       double& best_pitch, double& best_yaw) 
     {
