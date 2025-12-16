@@ -4,6 +4,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import PythonExpression
 
 def generate_launch_description():
     # 設定ファイルのパスを取得
@@ -19,7 +20,7 @@ def generate_launch_description():
         description='Camera device ID or Video URL for vision_analyzer'
     )
 
-    source_config = LaunchConfiguration('source')
+    source_config = PythonExpression(['"', LaunchConfiguration('source'), '"'])
 
     return LaunchDescription([
         camera_source_arg,
