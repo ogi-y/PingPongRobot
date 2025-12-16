@@ -14,7 +14,7 @@ def generate_launch_description():
         'params.yaml'
     )
 
-    camera_source_arg = DeclareLaunchArgument(
+    camera_source_arg = DeclareLaunchArgument( # 数字を入れるときはシングルクォーテーションとダブルクォーテーションでかこんで""''"
         'source',          # 実行時に指定する名前
         default_value='0',        # 何も指定しなかった場合の値
         description='Camera device ID or Video URL for vision_analyzer'
