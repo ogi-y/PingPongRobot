@@ -48,8 +48,10 @@ class VisionAgeNode(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             
             # --- DeepFace実行 (重い処理) ---
-            # enforce_detection=False は顔が見つからなくてもエラーにしない設定
-            analysis = DeepFace.analyze(cv_image, actions=['age'], enforce_detection=False)
+            try:
+                analysis = DeepFace.analyze(cv_image, actions=['age'], enforce_detection=False)
+            except Exception:
+                pass
             
             age_str = "Unknown"
             if isinstance(analysis, list) and len(analysis) > 0:
