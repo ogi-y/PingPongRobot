@@ -29,7 +29,7 @@ class VisionAnalyzer(Node):
 
         # --- カメラ初期化 ---
         self.get_logger().info(f"Opening camera source: {self.source}")
-        self.cap = cv2.VideoCapture(self.source, cv2.CAP_V4L2)
+        self.cap = cv2.VideoCapture(self.source, cv2.CAP_V4L2)# ウェブカメラのときはffmpeg
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # バッファを最小に
 
         if not self.cap.isOpened():
