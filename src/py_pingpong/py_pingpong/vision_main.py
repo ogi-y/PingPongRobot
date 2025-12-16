@@ -72,7 +72,6 @@ class VisionYoloNode(Node):
         self.capture_thread.start()
 
         # メイン処理タイマー (YOLO推論用)
-        # 別プロセスにしたので MultiThreadedExecutor は不要になり、通常のタイマー実行でOK
         self.timer = self.create_timer(0.01, self.process_ai)
 
     # --- カメラ映像を常に最新にするスレッド関数 ---
@@ -106,7 +105,6 @@ class VisionYoloNode(Node):
         frame_resized = cv2.resize(frame, (640, 480))
         
         # --- 【追加】年齢推定ノードへ画像を送信 ---
-        # YOLOの処理とは非同期に行われるため、ここで送信してもYOLOは止まらない
         try:
             # 通信負荷削減のためリサイズ後の画像を送る
             ros_image_for_age = self.bridge.cv2_to_imgmsg(frame_resized, "bgr8")
@@ -155,7 +153,7 @@ class VisionYoloNode(Node):
             self.pub_image.publish(ros_image)
             
             analysis_data = {
-                # jsonには数値を入れたい場合、文字列から変換が必要かもしれません
+                # jsonには数値を入れたい場合、文字列から変換が必要
                 "age_str": self.current_age_display, 
                 "people": detected_people
             }
@@ -175,7 +173,6 @@ class VisionYoloNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = VisionYoloNode()
-    # 単一スレッドで十分なため、通常のspinを使用
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

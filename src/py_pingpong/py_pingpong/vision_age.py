@@ -3,7 +3,6 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
-# QoS設定のために必要
 from rclpy.qos import QoSProfile, HistoryPolicy, ReliabilityPolicy
 from cv_bridge import CvBridge
 from deepface import DeepFace
@@ -16,9 +15,6 @@ class VisionAgeNode(Node):
         self.bridge = CvBridge()
         
         # --- 重要: QoS設定 ---
-        # 処理が遅れた場合、古い画像がキューに溜まらないようにする設定。
-        # depth=1: 最新の1枚だけ保持。
-        # reliability=BEST_EFFORT: 送信側が送りっぱなしで、届かなくても再送しない（高速化）。
         qos_sensor_sub = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
