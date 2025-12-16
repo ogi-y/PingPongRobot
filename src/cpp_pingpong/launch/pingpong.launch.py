@@ -20,7 +20,7 @@ def generate_launch_description():
         description='Camera device ID or Video URL for vision_analyzer'
     )
 
-    source_config = PythonExpression(['"', LaunchConfiguration('source'), '"'])
+    source_config = LaunchConfiguration('source')
 
     return LaunchDescription([
         camera_source_arg,
