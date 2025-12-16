@@ -172,9 +172,10 @@ class VisionAnalyzer(Node):
 
     def __del__(self):
         self.running = False
-        if self.capture_thread.is_alive():
+        if hasattr(self, 'capture_thread') and self.capture_thread.is_alive():
             self.capture_thread.join()
-        self.cap.release()
+        if hasattr(self, 'cap') and self.cap is not None:
+            self.cap.release()
 
 def main(args=None):
     rclpy.init(args=args)
