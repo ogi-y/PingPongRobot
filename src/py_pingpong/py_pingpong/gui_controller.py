@@ -291,7 +291,7 @@ class PingPongGUI(QWidget):
     def create_manual_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
-        lbl = QLabel("Direct Control: Set raw values for all motors.")
+        lbl = QLabel("Direct Control:  Set raw values for all motors.")
         lbl.setStyleSheet("color: red;")
         layout.addWidget(lbl)
 
@@ -305,12 +305,45 @@ class PingPongGUI(QWidget):
         layout.addLayout(self.man_roll)
         self.man_pow_l, _ = self.create_slider("Power Left (-100-100)", -100, 100, 0)
         layout.addLayout(self.man_pow_l)
-        self.man_pow_r, _ = self.create_slider("Power Right (-100-100)", -100, 100, 0)
+        self.man_pow_r, _ = self. create_slider("Power Right (-100-100)", -100, 100, 0)
         layout.addLayout(self.man_pow_r)
+
+        # 【追加】ボール供給トグルボタン（改良版）
+        group_feed = QGroupBox("Ball Feeder Control")
+        layout_feed = QHBoxLayout()
+        
+        lbl_feed = QLabel("Enable Ball Feed:")
+        lbl_feed.setStyleSheet("font-size: 14px; font-weight: bold;")
+        layout_feed.addWidget(lbl_feed)
+        
+        self.btn_feed_toggle = QPushButton("OFF")
+        self.btn_feed_toggle.setCheckable(True)
+        self.btn_feed_toggle.setChecked(False)
+        self.btn_feed_toggle.setFixedSize(100, 40)
+        self.btn_feed_toggle.setStyleSheet("""
+            QPushButton {
+                background-color: #F44336;
+                color: white;
+                font-weight: bold;
+                font-size: 18px;
+                border-radius:  5px;
+                border: 2px solid #C62828;
+            }
+            QPushButton:checked {
+                background-color: #4CAF50;
+                border:  2px solid #2E7D32;
+            }
+        """)
+        self.btn_feed_toggle.clicked.connect(self.toggle_feed_ball)
+        layout_feed.addWidget(self. btn_feed_toggle)
+        
+        layout_feed.addStretch()
+        group_feed.setLayout(layout_feed)
+        layout.addWidget(group_feed)
 
         btn_fire = QPushButton("FIRE RAW COMMAND")
         btn_fire.setFixedHeight(60)
-        btn_fire.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+        btn_fire.setStyleSheet("background-color: #FF9800; color:  white; font-weight: bold;")
         btn_fire.clicked.connect(self.fire_manual)
         layout.addWidget(btn_fire)
 
@@ -318,15 +351,29 @@ class PingPongGUI(QWidget):
         tab.setLayout(layout)
         return tab
 
+    def toggle_feed_ball(self):
+        """ボール供給ON/OFF切り替え"""
+        if self.btn_feed_toggle.isChecked():
+            self.btn_feed_toggle.setText("ON")
+            self.label_status.setText("Status: Ball Feed ENABLED ✅")
+        else:
+            self.btn_feed_toggle.setText("OFF")
+            self.label_status.setText("Status: Ball Feed DISABLED ❌")
+
     def fire_manual(self):
         msg = ShotParams()
-        msg.pos = float(self.man_pos.itemAt(1).widget().value())
+        msg.pos = float(self. man_pos. itemAt(1).widget().value())
         msg.pitch_deg = float(self.man_pitch.itemAt(1).widget().value())
         msg.yaw_deg = float(self.man_yaw.itemAt(1).widget().value())
         msg.roll_deg = float(self.man_roll.itemAt(1).widget().value())
-        msg.pow_left = int(self.man_pow_l.itemAt(1).widget().value())
+        msg.pow_left = int(self.man_pow_l. itemAt(1).widget().value())
         msg.pow_right = int(self.man_pow_r.itemAt(1).widget().value())
-        self.label_status.setText(f"Status: Raw Command Sent")
+        
+        # 【修正】トグルボタンの状態でfeed_ballを決定
+        msg.feed_ball = 1 if self.btn_feed_toggle.isChecked() else 0
+        
+        feed_status = "ON" if msg.feed_ball == 1 else "OFF"
+        self. label_status.setText(f"Status: Raw Command Sent (Feed:  {feed_status})")
         self.node.send_raw_command(msg)
 
     def create_slider(self, label_text, min_val, max_val, default_val):

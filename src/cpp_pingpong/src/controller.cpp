@@ -72,6 +72,7 @@ private:
             message.yaw_deg = request->yaw_deg;
             message.pow_right = request->pow_right;
             message.pow_left = request->pow_left;
+            message.feed_ball = 1;
             
             response->message = "Fired Manual Shot";
         }
@@ -101,6 +102,7 @@ private:
             message.yaw_deg = selected.yaw;
             message.pow_right = selected.pow_right;
             message.pow_left = selected.pow_left;
+            message.feed_ball = 1;
             shot_name = selected.name;
             
             response->message = "Fired Auto Shot: " + shot_name;

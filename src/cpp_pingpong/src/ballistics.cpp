@@ -162,6 +162,7 @@ void solve_trajectory(
         msg.yaw_deg = best_yaw; 
         msg.pow_left = (int)power_L;
         msg.pow_right = (int)power_R;
+        msg.feed_ball = 1;
 
         shot_pub_->publish(msg);
 
