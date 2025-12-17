@@ -23,6 +23,8 @@ class ImgPublisherNode(Node):
         self.bridge = CvBridge()
         self.cap = cv2.VideoCapture(self.source, cv2.CAP_V4L2)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         
         if not self.cap.isOpened():
             self.get_logger().error("Could not open camera!")
@@ -34,7 +36,8 @@ class ImgPublisherNode(Node):
     def timer_callback(self):
         ret, frame = self.cap.read()
         if ret:
-            frame = cv2.resize(frame, (self.width, self.height))
+            if frame.shape[0] != self.height or frame.shape[1] != self.width:
+                frame = cv2.resize(frame, (self.width, self.height))
             msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = 'camera_frame'

@@ -19,6 +19,7 @@ class PoseEstimationNode(Node):
         self.hand_side = self.get_parameter('hand_side').get_parameter_value().string_value
         model_path = self.get_parameter('model_path').get_parameter_value().string_value
         self.conf_threshold = self.get_parameter('confidence_threshold').get_parameter_value().double_value
+        self.process_interval = self.get_parameter('process_interval').get_parameter_value().integer_value
         
         self.bridge = CvBridge()
         self.pose_model = YOLO(model_path)

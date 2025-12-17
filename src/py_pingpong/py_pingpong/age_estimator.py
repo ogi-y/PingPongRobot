@@ -47,7 +47,7 @@ class AgeEstimationNode(Node):
         try:
             results = DeepFace.analyze(
                 frame,
-                actions=['age'],
+                actions=['age', 'gender'], # 遅かったらageのみにして
                 detector_backend=self.detector_backend,
                 enforce_detection=self.enforce_detection,
                 silent=True
@@ -58,7 +58,7 @@ class AgeEstimationNode(Node):
             
             for i, face in enumerate(results):
                 age = face.get('age', 0)
-                gender = face.get('dominant_gender', 0)
+                gender = face.get('dominant_gender', 'Unknown')
                 region = face.get('region', {})
                 
                 x = region.get('x', 0)
