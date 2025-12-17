@@ -45,17 +45,39 @@ class PingPongGUI(QWidget):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        lbl = QLabel("AI Strategy Mode: Uses Camera & Vision.\nRobot decides based on player position.")
+        lbl = QLabel("AI Strategy Mode:  Uses Camera & Vision.\nRobot decides based on player position.")
         lbl.setStyleSheet("font-weight: bold; color: #4CAF50;")
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
 
+        # 【追加】戦略モード選択
+        group_strategy = QGroupBox("Strategy Mode")
+        layout_strategy = QVBoxLayout()
+        
+        self.combo_strategy = QComboBox()
+        self.combo_strategy. addItems([
+            'Adaptive (Smart AI - Default)',
+            'Chase (Follow Player)',
+            'Avoid (Opposite Side)',
+            'Random (Unpredictable)',
+            'Center (Fixed Center)',
+            'Beginner (Super Easy)'
+        ])
+        self.combo_strategy.setCurrentIndex(0)
+        self.combo_strategy.currentIndexChanged.connect(self.update_strategy_mode)
+        
+        layout_strategy.addWidget(QLabel("Select AI behavior:"))
+        layout_strategy. addWidget(self.combo_strategy)
+        group_strategy.setLayout(layout_strategy)
+        layout.addWidget(group_strategy)
+
+        # 手の設定
         group_hand = QGroupBox("Target Player Hand Setting")
         layout_hand = QHBoxLayout()
         
         self.rb_right = QRadioButton("Right Hand (Standard)")
         self.rb_left = QRadioButton("Left Hand")
-        self.rb_right.setChecked(True)
+        self.rb_right. setChecked(True)
 
         self.bg_hand = QButtonGroup()
         self.bg_hand.addButton(self.rb_right, 0)
@@ -74,7 +96,7 @@ class PingPongGUI(QWidget):
         self.spin_interval = QSpinBox()
         self.spin_interval.setRange(2, 10)
         self.spin_interval.setValue(3)
-        layout_int.addWidget(self.spin_interval)
+        layout_int.addWidget(self. spin_interval)
         group_interval.setLayout(layout_int)
         layout.addWidget(group_interval)
 
@@ -98,6 +120,21 @@ class PingPongGUI(QWidget):
         
         self.label_status.setText(f"Status: Setting hand to {hand.upper()}...")
         self.node.set_vision_hand_param(hand)
+    
+    def update_strategy_mode(self):
+        """戦略モードを変更"""
+        strategy_map = {
+            0: 'adaptive',
+            1: 'chase',
+            2: 'avoid',
+            3: 'random',
+            4: 'center',
+            5: 'beginner'
+        }
+        
+        mode = strategy_map. get(self.combo_strategy. currentIndex(), 'adaptive')
+        self.label_status.setText(f"Status: Setting strategy to {mode. upper()}...")
+        self.node.set_strategy_param(mode)
 
     def toggle_auto_fire(self):
         if self.btn_auto_toggle.isChecked():
@@ -331,6 +368,23 @@ class RosGuiNode(Node):
         
         future = self.client_set_vision_param.call_async(req)
         future.add_done_callback(lambda f: self.get_logger().info(f"Hand param updated to: {hand_value}"))
+    
+    def set_strategy_param(self, strategy_value):
+        """strategy_serverのstrategy_modeパラメータを変更"""
+        client = self.create_client(SetParameters, '/strategy_server/set_parameters')
+        
+        if not client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn("Strategy Server param service not ready.")
+            return
+
+        req = SetParameters.Request()
+        param = Parameter()
+        param.name = "strategy_mode"
+        param. value = ParameterValue(type=ParameterType. PARAMETER_STRING, string_value=strategy_value)
+        req.parameters = [param]
+        
+        future = client.call_async(req)
+        future.add_done_callback(lambda f: self.get_logger().info(f"Strategy mode updated to:  {strategy_value}"))
 
     def publish_trigger(self):
         msg = Bool()
