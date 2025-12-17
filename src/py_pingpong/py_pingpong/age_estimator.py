@@ -57,11 +57,14 @@ class AgeEstimationNode(Node):
                 results = [results]
             
             for i, face in enumerate(results):
-                age = face['age']
-                gender = face['dominant_gender']
-                region = face['region']
+                age = face.get('age', 0)
+                gender = face.get('dominant_gender', 0)
+                region = face.get('region', {})
                 
-                x, y, w, h = region['x'], region['y'], region['w'], region['h']
+                x = region.get('x', 0)
+                y = region.get('y', 0)
+                w = region.get('w', 0)
+                h = region.get('h', 0)
                 
                 detected_faces.append({
                     "id": i,
