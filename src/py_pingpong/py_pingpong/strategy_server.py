@@ -15,13 +15,13 @@ class StrategyServer(Node):
         super().__init__('strategy_server')
         
         # --- パラメータ設定 ---
-        self.declare_parameter('court. width', 1525.0)
-        self.declare_parameter('court.length', 2740.0)
+        self.declare_parameter('court_width', 1525.0)
+        self.declare_parameter('court_length', 2740.0)
         self.declare_parameter('strategy_mode', 'adaptive')  # 【追加】戦略モード
         
         # 値の読み込み
-        self.court_w = self.get_parameter('court.width').value
-        self. court_l = self.get_parameter('court.length').value
+        self.court_w = self.get_parameter('court_width').value
+        self. court_l = self.get_parameter('court_length').value
         self.strategy_mode = self.get_parameter('strategy_mode').value
         
         # ターゲット座標の定義

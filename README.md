@@ -44,6 +44,28 @@ ros2 launch cpp_pingpong pingpong.launch.py
 ros2 launch py_pingpong gui_controller
 ~~~
 
+## ランチャーの引数について
+~~~
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'cam_source':
+        Camera source:  "0" (camera index), "/dev/video0" (device), or "./test.mp4" (video file)
+        (default: '0')
+
+    'loop_video':
+        Loop video playback (only for video files)
+        (default: 'true')
+
+    'strategy_mode':
+        Strategy mode: adaptive, chase, avoid, random, center, or beginner
+        (default: 'adaptive')
+
+    'hand_side':
+        Target hand side: right or left
+        (default: 'right')
+~~~
+
+
 ## 必要パッケージ（年齢推定・顔認識をする場合）
 - numpy (<2)
 - opencv-python

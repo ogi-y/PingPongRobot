@@ -33,8 +33,8 @@ public:
     BallisticsNode()
     : Node("ballistics_node")
     {
-        this->declare_parameter("robot.x_position", 762.5);
-        this->declare_parameter("robot.y_position", 0.0);
+        this->declare_parameter("robot_x_position", 762.5);
+        this->declare_parameter("robot_y_position", 0.0);
 
         shot_pub_ = this->create_publisher<pingpong_msgs::msg::ShotParams>("shot_command", 10);
 
@@ -130,8 +130,8 @@ void solve_trajectory(
         const std::shared_ptr<pingpong_msgs::srv::TargetShot::Request> request,
         std::shared_ptr<pingpong_msgs::srv::TargetShot::Response> response)
     {
-        float robot_x = this->get_parameter("robot.x_position").as_double();
-        float robot_y = this->get_parameter("robot.y_position").as_double();
+        float robot_x = this->get_parameter("robot_x_position").as_double();
+        float robot_y = this->get_parameter("robot_y_position").as_double();
 
         double target_rel_x = (request->target_x - robot_x) / 1000.0;
         double target_rel_y = (request->target_y - robot_y) / 1000.0;
