@@ -312,7 +312,7 @@ class RosGuiNode(Node):
         self.client_shoot_template = self.create_client(Shoot, 'shoot')
         self.client_shot = self.create_client(TargetShot, 'target_shot')
         self.pub_raw = self.create_publisher(ShotParams, 'shot_command', 10)
-        self.client_set_vision_param = self.create_client(SetParameters, '/pose_estimator/set_parameters')
+        self.client_set_vision_param = self.create_client(SetParameters, '/pose_estimation_node/set_parameters')
 
     # パラメータ設定送信
     def set_vision_hand_param(self, hand_value):
