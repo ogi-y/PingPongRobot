@@ -93,7 +93,7 @@ class ImgPublisherNode(Node):
             
             self. get_logger().info(
                 f"Video info: {video_width}x{video_height}, "
-                f"{total_frames} frames, {video_fps:. 1f} FPS, {duration:.1f}s"
+                f"{total_frames} frames, {video_fps:.1f} FPS, {duration:.1f}s"
             )
             if self.loop_video:
                 self.get_logger().info("Loop mode:  ENABLED")
@@ -110,7 +110,7 @@ class ImgPublisherNode(Node):
             actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
             
             self.get_logger().info(
-                f"Camera configured: {actual_width}x{actual_height} @ {actual_fps:. 1f} FPS"
+                f"Camera configured: {actual_width}x{actual_height} @ {actual_fps:.1f} FPS"
             )
         
         self.frame_count = 0
