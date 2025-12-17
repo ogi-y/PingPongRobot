@@ -355,10 +355,10 @@ class PingPongGUI(QWidget):
         """ボール供給ON/OFF切り替え"""
         if self.btn_feed_toggle.isChecked():
             self.btn_feed_toggle.setText("ON")
-            self.label_status.setText("Status: Ball Feed ENABLED ✅")
+            self.label_status.setText("Status: Ball Feed ENABLED")
         else:
             self.btn_feed_toggle.setText("OFF")
-            self.label_status.setText("Status: Ball Feed DISABLED ❌")
+            self.label_status.setText("Status: Ball Feed DISABLED")
 
     def fire_manual(self):
         msg = ShotParams()
