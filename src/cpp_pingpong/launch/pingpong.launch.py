@@ -8,7 +8,7 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     camera_source_arg = DeclareLaunchArgument(
         'cam_source',
-        default_value='0',
+        default_value="'0'",
         description='Camera source:  "0" (camera index), "/dev/video0" (device), or "./test.mp4" (video file)'
     )
     loop_video_arg = DeclareLaunchArgument(
