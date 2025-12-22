@@ -21,6 +21,13 @@ class PingPongGUI(QWidget):
         self.auto_timer.timeout.connect(self.send_auto_trigger)
         self.template_timer = QTimer()
         self.template_timer.timeout.connect(self.fire_template_service)
+        self.robot_x_slider_widget = None
+        self.robot_y_slider_widget = None
+        self.semi_x_widget = None
+        self.semi_y_widget = None
+        self.semi_roll_widget = None
+        self.semi_spin_widget = None
+        self.semi_speed_widget = None
         self.init_ui()
 
     def init_ui(self):
@@ -247,23 +254,52 @@ class PingPongGUI(QWidget):
         layout = QVBoxLayout()
         lbl = QLabel("Target Mode: Specify coordinates manually.")
         layout.addWidget(lbl)
+        group_robot_pos = QGroupBox("Robot Position (Info)")
+        layout_robot = QVBoxLayout()
+        
+        robot_x = self.node.get_parameter('robot_x_position').value
+        robot_y = self.node.get_parameter('robot_y_position').value
+        
+        self.label_robot_pos = QLabel(f"Current Position: X={robot_x:.0f}mm, Y={robot_y:.0f}mm")
+        self.label_robot_pos.setStyleSheet("font-weight: bold; color: #2196F3;")
+        layout_robot.addWidget(self.label_robot_pos)
+        
+        # ボタンで位置を更新（オプション）
+        btn_update_pos = QPushButton("Refresh Robot Position")
+        btn_update_pos.clicked.connect(self.update_robot_position_display)
+        layout_robot.addWidget(btn_update_pos)
+        
+        group_robot_pos.setLayout(layout_robot)
+        layout.addWidget(group_robot_pos)
 
-        self.semi_x, _ = self.create_slider("Target X (Width)", 0, 1525, 762)
+        group_robot_edit = QGroupBox("Robot Position Control (Advanced)")
+        layout_robot_edit = QVBoxLayout()
+
+        self.robot_x_slider, self.robot_x_slider_widget = self.create_slider("Robot X Position", 0, 1525, 762)
+        layout_robot_edit.addLayout(self.robot_x_slider)
+
+        self.robot_y_slider, self.robot_y_slider_widget = self.create_slider("Robot Y Position", -500, 500, 0)
+        layout_robot_edit.addLayout(self.robot_y_slider)
+
+        btn_set_robot_pos = QPushButton("Set Robot Position")
+        btn_set_robot_pos.clicked.connect(self.set_robot_position)
+        layout_robot_edit.addWidget(btn_set_robot_pos)
+
+        group_robot_edit.setLayout(layout_robot_edit)
+        layout.addWidget(group_robot_edit)
+
+        self.semi_x, self.semi_x_widget = self.create_slider("Target X (Width)", 0, 1525, 762)
         layout.addLayout(self.semi_x)
-        self.semi_y, _ = self.create_slider("Target Y (Depth)", 0, 2740, 2200)
+        self.semi_y, self.semi_y_widget = self.create_slider("Target Y (Depth)", 0, 2740, 2200)
         layout.addLayout(self.semi_y)
-        self.semi_roll, _ = self.create_slider("Head Roll (deg)", -45, 45, 0)
+        self.semi_roll, self.semi_roll_widget = self.create_slider("Head Roll (deg)", -45, 45, 0)
         layout.addLayout(self.semi_roll)
         
-        # スピン量
-        self.semi_spin, _ = self.create_slider("Spin Power (Diff)", -50, 50, 0)
+        self.semi_spin, self.semi_spin_widget = self.create_slider("Spin Power (Diff)", -50, 50, 0)
         layout.addLayout(self.semi_spin)
 
-        # --- 【変更点】スピード設定をスライダーに ---
-        # 合計値なので 0 ～ 200  合計50ぐらいで十分早い 100以上は危険
-        self.semi_speed, _ = self.create_slider("Total Speed (L+R)", 0, 100, 15)
+        self.semi_speed, self.semi_speed_widget = self.create_slider("Total Speed (L+R)", 0, 100, 15)
         layout.addLayout(self.semi_speed)
-        # ----------------------------------------
 
         btn_fire = QPushButton("FIRE TARGET SHOT")
         btn_fire.setFixedHeight(60)
@@ -274,15 +310,33 @@ class PingPongGUI(QWidget):
         layout.addStretch()
         tab.setLayout(layout)
         return tab
+    def update_robot_position_display(self):
+        """ロボット位置表示を更新"""
+        robot_x = self.node.get_parameter('robot_x_position').value
+        robot_y = self.node.get_parameter('robot_y_position').value
+        self.label_robot_pos.setText(f"Current Position: X={robot_x:.0f}mm, Y={robot_y:.0f}mm")
+        self.label_status.setText(f"Status: Robot at ({robot_x:.0f}, {robot_y:.0f})")
+
+    def set_robot_position(self):
+        """ロボット位置スライダーの値からロボット位置を設定"""
+        # 【修正】保存したスライダーウィジェットから値を取得
+        robot_x = self.robot_x_slider_widget.value()
+        robot_y = self.robot_y_slider_widget.value()
+        
+        # RosGuiNodeのset_robot_positionメソッドを呼び出し
+        self.node.set_robot_position(robot_x, robot_y)
+        
+        # 表示を更新
+        self.update_robot_position_display()
 
     def fire_semiauto(self):
-        x = float(self.semi_x.itemAt(1).widget().value())
-        y = float(self.semi_y.itemAt(1).widget().value())
-        roll = float(self.semi_roll.itemAt(1).widget().value())
-        spin = int(self.semi_spin.itemAt(1).widget().value())
+        x = float(self.semi_x_widget.value())
+        y = float(self.semi_y_widget.value())
+        roll = float(self.semi_roll_widget.value())
+        spin = int(self.semi_spin_widget.value())
         
         # --- 【変更点】値をintで取得 ---
-        speed = int(self.semi_speed.itemAt(1).widget().value())
+        speed = int(self.semi_speed_widget.value())
         
         self.label_status.setText(f"Status: Semi-Auto -> ({x:.0f}, {y:.0f}) Spd:{speed}")
         self.node.send_target_shot(x, y, roll, spin, speed)
@@ -385,13 +439,16 @@ class PingPongGUI(QWidget):
         slider.valueChanged.connect(lambda val: lbl_title.setText(f"{label_text}: {val}"))
         layout.addWidget(lbl_title)
         layout.addWidget(slider)
-        return layout, lbl_title
+        # 【修正】レイアウトとスライダーウィジェット両方を返す
+        return layout, slider
 
 
 class RosGuiNode(Node):
     def __init__(self):
         super().__init__('gui_controller')
         
+        self.declare_parameter('robot_x_position', 762.5)
+        self.declare_parameter('robot_y_position', 0.0)
         self.pub_trigger = self.create_publisher(Bool, '/serve_trigger', 10)
         self.client_shoot_template = self.create_client(Shoot, 'shoot')
         self.client_shot = self.create_client(TargetShot, 'target_shot')
@@ -453,6 +510,8 @@ class RosGuiNode(Node):
             self.get_logger().warn("Service '/target_shot' not ready!")
             return
         req = TargetShot.Request()
+        req.robot_x = float(self.get_parameter('robot_x_position').value)
+        req.robot_y = float(self.get_parameter('robot_y_position').value)
         req.target_x = float(x)
         req.target_y = float(y)
         req.height_z = 0.0
@@ -463,6 +522,29 @@ class RosGuiNode(Node):
 
     def send_raw_command(self, msg):
         self.pub_raw.publish(msg)
+    
+    def set_robot_position(self, x, y):
+        """ロボット位置パラメータを動的に更新"""
+        client = self.create_client(SetParameters, '/gui_controller/set_parameters')
+        
+        if not client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn("Cannot set robot position")
+            return
+        
+        req = SetParameters.Request()
+        
+        param_x = Parameter()
+        param_x.name = "robot_x_position"
+        param_x.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(x))
+        
+        param_y = Parameter()
+        param_y.name = "robot_y_position"
+        param_y.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=float(y))
+        
+        req.parameters = [param_x, param_y]
+        
+        future = client.call_async(req)
+        future.add_done_callback(lambda f: self.get_logger().info(f"Robot position updated to: ({x}, {y})"))
 
 def main(args=None):
     rclpy.init(args=args)

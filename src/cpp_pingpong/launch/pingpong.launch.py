@@ -85,7 +85,9 @@ def generate_launch_description():
             parameters=[{
                 'court_width': 1525.0,
                 'court_length': 2740.0,
-                'strategy_mode': strategy_mode
+                'strategy_mode': strategy_mode,
+                'robot_x_position': 762.5,
+                'robot_y_position': 0.0
             }],
             output='screen'
         ),

@@ -1,4 +1,6 @@
 # Request
+float32 robot_x
+float32 robot_y
 float32 target_x  # 狙う場所のX座標 (mm)
 float32 target_y  # 狙う場所のY座標 (mm) 奥方向
 float32 height_z  # 狙う高さ

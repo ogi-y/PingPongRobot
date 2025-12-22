@@ -18,6 +18,8 @@ class StrategyServer(Node):
         self.declare_parameter('court_width', 1525.0)
         self.declare_parameter('court_length', 2740.0)
         self.declare_parameter('strategy_mode', 'adaptive')  # 【追加】戦略モード
+        self.declare_parameter('robot_x_position', 762.5)
+        self.declare_parameter('robot_y_position', 0.0)
         
         # 値の読み込み
         self.court_w = self.get_parameter('court_width').value
@@ -251,6 +253,8 @@ class StrategyServer(Node):
             target_x, target_y, speed, spin, level = self.decide_strategy_adaptive(player_x_img, age)
 
         roll = 0.0
+        robot_x = self.get_parameter('robot_x_position').value
+        robot_y = self.get_parameter('robot_y_position').value
 
         # --- 3. 軌道計算機への指令送信 ---
         self.get_logger().info(
@@ -260,6 +264,8 @@ class StrategyServer(Node):
         )
 
         req = TargetShot.Request()
+        req.robot_x = float(robot_x)
+        req.robot_y = float(robot_y)
         req.target_x = float(target_x)
         req.target_y = float(target_y)
         req.height_z = 0.0

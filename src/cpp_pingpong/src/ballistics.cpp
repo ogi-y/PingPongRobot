@@ -46,6 +46,7 @@ public:
     }
 
 private:
+    //要調整
     double power_to_v0(double avg_power) {
         return 2.0 + (std::abs(avg_power) / 100.0) * 23.0; 
     }
@@ -127,11 +128,12 @@ private:
     }
 
 void solve_trajectory(
-        const std::shared_ptr<pingpong_msgs::srv::TargetShot::Request> request,
-        std::shared_ptr<pingpong_msgs::srv::TargetShot::Response> response)
+    const std::shared_ptr<pingpong_msgs::srv::TargetShot::Request> request,
+    std::shared_ptr<pingpong_msgs::srv::TargetShot::Response> response)
     {
-        float robot_x = this->get_parameter("robot_x_position").as_double();
-        float robot_y = this->get_parameter("robot_y_position").as_double();
+        // リクエストから現在のロボット位置を取得（パラメータではなく）
+        double robot_x = request->robot_x;
+        double robot_y = request->robot_y;
 
         double target_rel_x = (request->target_x - robot_x) / 1000.0;
         double target_rel_y = (request->target_y - robot_y) / 1000.0;
@@ -156,7 +158,7 @@ void solve_trajectory(
 
         // 送信
         auto msg = pingpong_msgs::msg::ShotParams();
-        msg.pos = robot_x;
+        msg.pos = robot_x;  // 実際の発射位置
         msg.roll_deg = roll;
         msg.pitch_deg = best_pitch;
         msg.yaw_deg = best_yaw; 
@@ -166,18 +168,19 @@ void solve_trajectory(
 
         shot_pub_->publish(msg);
 
-        // ログ
+        // レスポンス設定
+        response->success = found;
         if (found) {
+            response->message = "Trajectory calculated successfully";
             RCLCPP_INFO(this->get_logger(), 
-                "SUCCESS: Speed=%d(L%d/R%d) -> Pitch=%.1f, Yaw=%.1f",
-                (int)total_speed, (int)power_L, (int)power_R, best_pitch, best_yaw);
-            response->success = true;
-            response->message = "Calculated optimal trajectory";
+                "Shot from (%.1f, %.1f) to (%.1f, %.1f): pitch=%.1f°, yaw=%.1f°", 
+                robot_x, robot_y, request->target_x, request->target_y,
+                best_pitch, best_yaw);
         } else {
+            response->message = "Could not find valid trajectory";
             RCLCPP_WARN(this->get_logger(), 
-                "UNREACHABLE: Power %d is too weak/strong for dist %.1fm", (int)total_speed, target_rel_y);
-            response->success = false;
-            response->message = "Target Unreachable";
+                "Failed to calculate trajectory from (%.1f, %.1f) to (%.1f, %.1f)", 
+                robot_x, robot_y, request->target_x, request->target_y);
         }
     }
 
