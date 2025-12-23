@@ -9,7 +9,7 @@ import random
 from pingpong_msgs.srv import TargetShot
 from pingpong_msgs.srv import Shoot
 from pingpong_msgs.msg import ShotParams
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
 
@@ -28,7 +28,11 @@ class PingPongGUI(QWidget):
         self.semi_roll_widget = None
         self.semi_spin_widget = None
         self.semi_speed_widget = None
+        self.chk_auto_age = None
+        self.spin_age = None
         self.init_ui()
+        # ROS age listener registration (keeps GUI in sync with estimation topic)
+        self.node.register_age_listener(self.on_age_estimated)
 
     def init_ui(self):
         self.setWindowTitle('Ping Pong Robot Commander')
@@ -169,6 +173,22 @@ class PingPongGUI(QWidget):
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
 
+        group_auto = QGroupBox("Auto Level Select")
+        layout_auto = QHBoxLayout()
+        self.chk_auto_age = QCheckBox("Auto select by age")
+        self.chk_auto_age.stateChanged.connect(self.on_auto_age_toggled)
+        layout_auto.addWidget(self.chk_auto_age)
+
+        layout_auto.addWidget(QLabel("Player age:"))
+        self.spin_age = QSpinBox()
+        self.spin_age.setRange(5, 99)
+        self.spin_age.setValue(25)
+        self.spin_age.valueChanged.connect(self.on_age_value_changed)
+        layout_auto.addWidget(self.spin_age)
+        layout_auto.addStretch()
+        group_auto.setLayout(layout_auto)
+        layout.addWidget(group_auto)
+
         # 難易度選択
         group_level = QGroupBox("Difficulty Levels (Mixable)")
         layout_level = QHBoxLayout()
@@ -214,10 +234,79 @@ class PingPongGUI(QWidget):
         tab.setLayout(layout)
         return tab
 
+    def on_auto_age_toggled(self):
+        if self.chk_auto_age.isChecked():
+            self.set_level_checkboxes_enabled(False)
+            self.update_levels_from_age()
+        else:
+            self.set_level_checkboxes_enabled(True)
+            self.label_status.setText("Status: Manual level selection")
+
+    def on_age_value_changed(self, _value):
+        if self.chk_auto_age.isChecked():
+            self.update_levels_from_age()
+
+    def on_age_estimated(self, age_value):
+        """Age estimation callback from ROS topic"""
+        # Bound the age to spin box limits then update UI; triggers auto-level refresh when enabled
+        bounded = max(self.spin_age.minimum(), min(self.spin_age.maximum(), int(age_value)))
+        if self.spin_age.value() != bounded:
+            self.spin_age.setValue(bounded)
+        elif self.chk_auto_age.isChecked():
+            # If value unchanged but auto mode on, still refresh levels
+            self.update_levels_from_age()
+
+    def set_level_checkboxes_enabled(self, enabled):
+        for chk in [self.chk_lv1, self.chk_lv2, self.chk_lv3, self.chk_lv4]:
+            chk.setEnabled(enabled)
+
+    def apply_level_checks(self, levels):
+        self.chk_lv1.setChecked(1 in levels)
+        self.chk_lv2.setChecked(2 in levels)
+        self.chk_lv3.setChecked(3 in levels)
+        self.chk_lv4.setChecked(4 in levels)
+
+    def calculate_levels_for_age(self, age):
+        # レベル調整
+        if age < 10:
+            return [1]
+        if age < 20:
+            return [1, 2]
+        if age < 40:
+            return [2, 3]
+        if age < 50:
+            return [3]
+        if age < 80:
+            return [3, 4]
+        return [1, 2]
+
+    def update_levels_from_age(self):
+        age = self.spin_age.value()
+        levels = self.calculate_levels_for_age(age)
+        self.apply_level_checks(levels)
+        level_text = ",".join([str(lv) for lv in levels])
+        self.label_status.setText(f"Status: Auto level by age {age} -> Lv{level_text}")
+
+    def collect_active_levels(self):
+        if self.chk_auto_age and self.chk_auto_age.isChecked():
+            levels = self.calculate_levels_for_age(self.spin_age.value())
+            self.apply_level_checks(levels)
+            return levels
+        active_levels = []
+        if self.chk_lv1.isChecked():
+            active_levels.append(1)
+        if self.chk_lv2.isChecked():
+            active_levels.append(2)
+        if self.chk_lv3.isChecked():
+            active_levels.append(3)
+        if self.chk_lv4.isChecked():
+            active_levels.append(4)
+        return active_levels
+
     def toggle_template_fire(self):
         if self.btn_tmpl_toggle.isChecked():
-            if not any([self.chk_lv1.isChecked(), self.chk_lv2.isChecked(), 
-                        self.chk_lv3.isChecked(), self.chk_lv4.isChecked()]):
+            active_levels = self.collect_active_levels()
+            if not active_levels:
                 self.label_status.setText("Status: Error! Select at least one level.")
                 self.btn_tmpl_toggle.setChecked(False)
                 return
@@ -234,11 +323,7 @@ class PingPongGUI(QWidget):
             self.label_status.setText("Status: Template Stopped.")
 
     def fire_template_service(self):
-        active_levels = []
-        if self.chk_lv1.isChecked(): active_levels.append(1)
-        if self.chk_lv2.isChecked(): active_levels.append(2)
-        if self.chk_lv3.isChecked(): active_levels.append(3)
-        if self.chk_lv4.isChecked(): active_levels.append(4)
+        active_levels = self.collect_active_levels()
         
         if not active_levels:
             self.label_status.setText("Status: No level selected!")
@@ -449,11 +534,14 @@ class RosGuiNode(Node):
         
         self.declare_parameter('robot_x_position', 762.5)
         self.declare_parameter('robot_y_position', 0.0)
+        self.latest_age = None
+        self.age_listener = None
         self.pub_trigger = self.create_publisher(Bool, '/serve_trigger', 10)
         self.client_shoot_template = self.create_client(Shoot, 'shoot')
         self.client_shot = self.create_client(TargetShot, 'target_shot')
         self.pub_raw = self.create_publisher(ShotParams, 'shot_command', 10)
         self.client_set_vision_param = self.create_client(SetParameters, '/pose_estimation_node/set_parameters')
+        self.sub_age = self.create_subscription(String, '/age/estimation_result', self.age_callback, 10)
 
     # パラメータ設定送信
     def set_vision_hand_param(self, hand_value):
@@ -545,6 +633,22 @@ class RosGuiNode(Node):
         
         future = client.call_async(req)
         future.add_done_callback(lambda f: self.get_logger().info(f"Robot position updated to: ({x}, {y})"))
+
+    # --- Age estimation ---
+    def register_age_listener(self, callback):
+        self.age_listener = callback
+        if self.latest_age is not None and self.age_listener:
+            self.age_listener(self.latest_age)
+
+    def age_callback(self, msg: String):
+        try:
+            age_val = int(float(msg.data))
+        except (ValueError, TypeError):
+            self.get_logger().warn(f"Invalid age message: {msg.data}")
+            return
+        self.latest_age = age_val
+        if self.age_listener:
+            self.age_listener(age_val)
 
 def main(args=None):
     rclpy.init(args=args)
